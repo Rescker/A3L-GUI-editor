@@ -1,0 +1,558 @@
+// =============================================================================
+// Zustand Editor Store — Global application state
+// Handles all editor operations: CRUD for dialogs/controls, selection,
+// grid/resolution settings, import/export actions.
+// =============================================================================
+
+import { create } from 'zustand';
+import type {
+  DialogConfig,
+  ControlConfig,
+  UIContainerType,
+  ControlType,
+  GridSystem,
+  ControlZone,
+  ValidationIssue,
+} from '../types/controls';
+import { CONTROL_TYPES } from '../data/controlDefaults';
+import { validateAll } from '../utils/validation';
+import { generateDialogConfig } from '../utils/configGenerator';
+import { importConfig } from '../utils/configParser';
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+let idCounter = 0;
+function uid(): string {
+  return `ctrl_${Date.now()}_${++idCounter}`;
+}
+
+function createDefaultControl(type: ControlType): ControlConfig {
+  const info = CONTROL_TYPES.find(ct => ct.type === type);
+  return {
+    id: uid(),
+    className: `Control_${1600 + idCounter}`,
+    idc: 1600 + idCounter,
+    type,
+    style: 0,
+    x: 0,
+    y: 0,
+    w: info?.defaultSize.w ?? 10,
+    h: info?.defaultSize.h ?? 2,
+    sizeEx: 4,
+    font: 'RobotoCondensed',
+    colorText: [1, 1, 1, 1],
+    colorBackground: [0, 0, 0, 0],
+    text: info?.label ?? 'Control',
+    shadow: 0,
+    tooltip: '',
+    moving: false,
+    parentClass: info?.defaultParent ?? 'RscText',
+    eventHandlers: [],
+  };
+}
+
+function createDefaultDialog(type: UIContainerType): DialogConfig {
+  return {
+    id: uid(),
+    className: type === 'hud' ? 'HUD_Name' : type === 'display' ? 'DisplayName' : 'DialogName',
+    containerType: type,
+    idd: -1,
+    movingEnable: true,
+    enableSimulation: type === 'dialog' ? false : true,
+    onLoad: '',
+    onUnload: '',
+    controlsBackground: [],
+    controls: [],
+    objects: [],
+    eventHandlers: [],
+    ...(type === 'hud' ? { fadeIn: 0, fadeOut: 0, duration: 1e11 } : {}),
+  };
+}
+
+function findControl(dialog: DialogConfig, controlId: string): { zone: ControlZone; control: ControlConfig; parent?: ControlConfig } | null {
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+    const controls = dialog[zone];
+    for (const ctrl of controls) {
+      if (ctrl.id === controlId) return { zone, control: ctrl };
+      if (ctrl.children) {
+        const found = findInChildren(ctrl.children, controlId);
+        if (found) return { zone, control: found, parent: ctrl };
+      }
+    }
+  }
+  return null;
+}
+
+function findInChildren(children: ControlConfig[], controlId: string): ControlConfig | null {
+  for (const ctrl of children) {
+    if (ctrl.id === controlId) return ctrl;
+    if (ctrl.children) {
+      const found = findInChildren(ctrl.children, controlId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function updateControlInDialog(dialog: DialogConfig, controlId: string, patch: Partial<ControlConfig>): DialogConfig {
+  const newDialog = { ...dialog };
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+    const idx = newDialog[zone].findIndex(c => c.id === controlId);
+    if (idx >= 0) {
+      const updated = [...newDialog[zone]];
+      updated[idx] = { ...updated[idx], ...patch };
+      newDialog[zone] = updated;
+      return newDialog;
+    }
+    // Check children
+    const newControls = updateInControls(newDialog[zone], controlId, patch);
+    if (newControls) {
+      newDialog[zone] = newControls;
+      return newDialog;
+    }
+  }
+  return dialog;
+}
+
+function updateInControls(controls: ControlConfig[], controlId: string, patch: Partial<ControlConfig>): ControlConfig[] | null {
+  const result = [...controls];
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].id === controlId) {
+      result[i] = { ...result[i], ...patch };
+      return result;
+    }
+    if (result[i].children) {
+      const updated = updateInControls(result[i].children!, controlId, patch);
+      if (updated) {
+        result[i] = { ...result[i], children: updated };
+        return result;
+      }
+    }
+  }
+  return null;
+}
+
+function removeFromControls(controls: ControlConfig[], controlId: string): ControlConfig[] | null {
+  const idx = controls.findIndex(c => c.id === controlId);
+  if (idx >= 0) {
+    const result = [...controls];
+    result.splice(idx, 1);
+    return result;
+  }
+  for (let i = 0; i < controls.length; i++) {
+    if (controls[i].children) {
+      const updated = removeFromControls(controls[i].children!, controlId);
+      if (updated) {
+        const result = [...controls];
+        result[i] = { ...result[i], children: updated };
+        return result;
+      }
+    }
+  }
+  return null;
+}
+
+// =============================================================================
+// Store Interface
+// =============================================================================
+
+interface EditorStore {
+  dialogs: DialogConfig[];
+  activeDialogId: string | null;
+  selectedControlIds: string[];
+  hoveredControlId: string | null;
+  editingControlId: string | null;
+  gridSystem: GridSystem;
+  gridVariant: string;
+  showGrid: boolean;
+  snapToGrid: boolean;
+  previewResolution: { w: number; h: number };
+  previewUIScale: string;
+  zoomLevel: number;
+  cursorGridX: string;
+  cursorGridY: string;
+  importModalOpen: boolean;
+  exportModalOpen: boolean;
+  uiehPickerOpen: boolean;
+  exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
+  validationIssues: ValidationIssue[];
+
+  // Actions
+  addDialog: (type: UIContainerType) => void;
+  removeDialog: (id: string) => void;
+  setActiveDialog: (id: string) => void;
+  addControl: (dialogId: string, type: ControlType, zone: ControlZone) => void;
+  updateControl: (dialogId: string, controlId: string, patch: Partial<ControlConfig>) => void;
+  removeControl: (dialogId: string, controlId: string) => void;
+  moveControl: (dialogId: string, controlId: string, x: number | string, y: number | string) => void;
+  resizeControl: (dialogId: string, controlId: string, w: number | string, h: number | string) => void;
+  reparentControl: (controlId: string, targetGroupId: string | null) => void;
+  toggleStyleFlag: (dialogId: string, controlId: string, flag: number) => void;
+  selectControl: (controlId: string, multi?: boolean) => void;
+  clearSelection: () => void;
+  setGridSystem: (grid: GridSystem) => void;
+  setGridVariant: (variant: string) => void;
+  setShowGrid: (show: boolean) => void;
+  setSnapToGrid: (snap: boolean) => void;
+  setPreviewResolution: (res: { w: number; h: number }) => void;
+  setPreviewUIScale: (scale: string) => void;
+  setZoomLevel: (zoom: number) => void;
+  setImportModalOpen: (open: boolean) => void;
+  setExportModalOpen: (open: boolean) => void;
+  setUiehPickerOpen: (open: boolean) => void;
+  setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
+  importData: (raw: string) => void;
+  exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
+  setCursorGridPos: (x: string, y: string) => void;
+  runValidation: () => void;
+}
+
+// =============================================================================
+// Store Implementation
+// =============================================================================
+
+export const useEditorStore = create<EditorStore>((set, get) => ({
+  dialogs: [],
+  activeDialogId: null,
+  selectedControlIds: [],
+  hoveredControlId: null,
+  editingControlId: null,
+  gridSystem: 'gui_grid',
+  gridVariant: 'GUI_GRID_CENTER',
+  showGrid: true,
+  snapToGrid: true,
+  previewResolution: { w: 1920, h: 1080 },
+  previewUIScale: 'normal',
+  zoomLevel: 0.5,
+  cursorGridX: '0',
+  cursorGridY: '0',
+  importModalOpen: false,
+  exportModalOpen: false,
+  uiehPickerOpen: false,
+  exportFormat: 'full_dialog',
+  validationIssues: [],
+
+  // === Dialog Actions ===
+
+  addDialog: (type) => {
+    const dialog = createDefaultDialog(type);
+    set(state => {
+      const newDialogs = [...state.dialogs, dialog];
+      return {
+        dialogs: newDialogs,
+        activeDialogId: dialog.id,
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  removeDialog: (id) => {
+    set(state => {
+      const newDialogs = state.dialogs.filter(d => d.id !== id);
+      return {
+        dialogs: newDialogs,
+        activeDialogId: state.activeDialogId === id ? (newDialogs[0]?.id ?? null) : state.activeDialogId,
+        selectedControlIds: [],
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  setActiveDialog: (id) => {
+    set({ activeDialogId: id, selectedControlIds: [], editingControlId: null });
+  },
+
+  // === Control CRUD ===
+
+  addControl: (dialogId, type, zone) => {
+    set(state => {
+      const control = createDefaultControl(type);
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        const updated = { ...d };
+        updated[zone] = [...d[zone], control];
+        return updated;
+      });
+      return {
+        dialogs: newDialogs,
+        selectedControlIds: [control.id],
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  updateControl: (dialogId, controlId, patch) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return updateControlInDialog(d, controlId, patch);
+      });
+      return {
+        dialogs: newDialogs,
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  removeControl: (dialogId, controlId) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        const updated = { ...d };
+        for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+          const removed = removeFromControls(updated[zone], controlId);
+          if (removed) {
+            updated[zone] = removed;
+            return updated;
+          }
+        }
+        return updated;
+      });
+      return {
+        dialogs: newDialogs,
+        selectedControlIds: state.selectedControlIds.filter(id => id !== controlId),
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  moveControl: (dialogId, controlId, x, y) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return updateControlInDialog(d, controlId, { x, y });
+      });
+      return { dialogs: newDialogs };
+    });
+  },
+
+  resizeControl: (dialogId, controlId, w, h) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return updateControlInDialog(d, controlId, { w, h });
+      });
+      return { dialogs: newDialogs };
+    });
+  },
+
+  reparentControl: (controlId, targetGroupId) => {
+    set(state => {
+      // Find the control in current dialog and remove it
+      const dialog = state.dialogs.find(d => d.id === state.activeDialogId);
+      if (!dialog) return state;
+
+      let sourceControl: ControlConfig | null = null;
+      let sourceZone: ControlZone | null = null;
+
+      // Find and extract control
+      for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+        const idx = dialog[zone].findIndex(c => c.id === controlId);
+        if (idx >= 0) {
+          sourceControl = dialog[zone][idx];
+          sourceZone = zone;
+          break;
+        }
+        // Check in children
+        for (const ctrl of dialog[zone]) {
+          if (ctrl.children) {
+            const childIdx = ctrl.children.findIndex(c => c.id === controlId);
+            if (childIdx >= 0) {
+              sourceControl = ctrl.children[childIdx];
+              sourceZone = zone;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!sourceControl) return state;
+
+      let newDialogs = state.dialogs.map(d => {
+        if (d.id !== state.activeDialogId) return d;
+        // Remove from source
+        const updated = { ...d };
+        for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+          const removed = removeFromControls(updated[zone], controlId);
+          if (removed) {
+            updated[zone] = removed;
+            break;
+          }
+        }
+        return updated;
+      });
+
+      // Add to target
+      newDialogs = newDialogs.map(d => {
+        if (d.id !== state.activeDialogId) return d;
+        const updated = { ...d };
+        if (targetGroupId) {
+          // Add as child of group
+          const newControls = addToGroup(updated.controls, targetGroupId, sourceControl!);
+          if (!newControls) {
+            // Try other zones
+            const bg = addToGroup(updated.controlsBackground, targetGroupId, sourceControl!);
+            if (bg) updated.controlsBackground = bg;
+          } else {
+            updated.controls = newControls;
+          }
+        } else {
+          // Add to controls as top-level
+          updated.controls = [...updated.controls, { ...sourceControl!, children: undefined }];
+        }
+        return updated;
+      });
+
+      return { dialogs: newDialogs };
+    });
+  },
+
+  toggleStyleFlag: (dialogId, controlId, flag) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        const updated = updateControlInDialog(d, controlId, {});
+        const found = findControl(updated, controlId);
+        if (found) {
+          const newStyle = (found.control.style & flag) === flag
+            ? found.control.style & ~flag
+            : found.control.style | flag;
+          return updateControlInDialog(d, controlId, { style: newStyle });
+        }
+        return d;
+      });
+      return { dialogs: newDialogs, validationIssues: validateAll(newDialogs) };
+    });
+  },
+
+  // === Selection ===
+
+  selectControl: (controlId, multi = false) => {
+    set(state => {
+      if (multi) {
+        const exists = state.selectedControlIds.includes(controlId);
+        return {
+          selectedControlIds: exists
+            ? state.selectedControlIds.filter(id => id !== controlId)
+            : [...state.selectedControlIds, controlId],
+        };
+      }
+      return { selectedControlIds: [controlId] };
+    });
+  },
+
+  clearSelection: () => set({ selectedControlIds: [] }),
+
+  // === Settings ===
+
+  setGridSystem: (grid) => set({ gridSystem: grid }),
+  setGridVariant: (variant) => set({ gridVariant: variant }),
+  setShowGrid: (show) => set({ showGrid: show }),
+  setSnapToGrid: (snap) => set({ snapToGrid: snap }),
+  setPreviewResolution: (res) => set({ previewResolution: res }),
+  setPreviewUIScale: (scale) => set({ previewUIScale: scale }),
+  setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
+  setImportModalOpen: (open) => set({ importModalOpen: open }),
+  setExportModalOpen: (open) => set({ exportModalOpen: open }),
+  setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
+  setExportFormat: (format) => set({ exportFormat: format }),
+
+  // === Import/Export ===
+
+  importData: (raw) => {
+    const parsed = importConfig(raw);
+    if (parsed) {
+      const dialog: DialogConfig = {
+        id: parsed.id ?? uid(),
+        className: parsed.className ?? 'ImportedDialog',
+        containerType: parsed.containerType ?? 'dialog',
+        idd: parsed.idd ?? -1,
+        movingEnable: parsed.movingEnable ?? true,
+        enableSimulation: parsed.enableSimulation ?? false,
+        onLoad: parsed.onLoad ?? '',
+        onUnload: parsed.onUnload ?? '',
+        controlsBackground: parsed.controlsBackground ?? [],
+        controls: parsed.controls ?? [],
+        objects: parsed.objects ?? [],
+        eventHandlers: parsed.eventHandlers ?? [],
+        fadeIn: parsed.fadeIn,
+        fadeOut: parsed.fadeOut,
+        duration: parsed.duration,
+      };
+      // Auto-detect coordinate system: if all x/w values are 0..1 and y/h are 0..1,
+      // the config uses absolute coordinates
+      const allControls = [...dialog.controlsBackground, ...dialog.controls, ...dialog.objects];
+      const useAbsolute = allControls.length > 0 && allControls.every(c =>
+        isFloatInRange(c.x, 0, 1) && isFloatInRange(c.y, 0, 1) &&
+        isFloatInRange(c.w, 0, 1) && isFloatInRange(c.h, 0, 1)
+      );
+      set(state => {
+        const newDialogs = [...state.dialogs, dialog];
+        return {
+          dialogs: newDialogs,
+          activeDialogId: dialog.id,
+          importModalOpen: false,
+          gridSystem: useAbsolute ? 'absolute' : state.gridSystem,
+          validationIssues: validateAll(newDialogs),
+        };
+      });
+    }
+  },
+
+  exportData: (dialogId, format) => {
+    const state = get();
+    const dialog = state.dialogs.find(d => d.id === dialogId);
+    if (!dialog) return '';
+
+    return generateDialogConfig(dialog, {
+      format: format ?? state.exportFormat,
+      gridSystem: state.gridSystem,
+      gridVariant: state.gridVariant,
+      indentSize: 2,
+      useInheritance: true,
+      emitIncludes: true,
+      usePreprocessorColors: false,
+      exportZone: 'all',
+      tabCount: 1,
+    });
+  },
+
+  setCursorGridPos: (x, y) => set({ cursorGridX: x, cursorGridY: y }),
+  runValidation: () => {
+    set(state => ({ validationIssues: validateAll(state.dialogs) }));
+  },
+}));
+
+// =============================================================================
+// Helper functions
+// =============================================================================
+
+function addToGroup(controls: ControlConfig[], groupId: string, child: ControlConfig): ControlConfig[] | null {
+  for (let i = 0; i < controls.length; i++) {
+    if (controls[i].id === groupId && controls[i].type === 15) {
+      const result = [...controls];
+      result[i] = {
+        ...result[i],
+        children: [...(result[i].children ?? []), { ...child, children: undefined }],
+      };
+      return result;
+    }
+    if (controls[i].children) {
+      const updated = addToGroup(controls[i].children!, groupId, child);
+      if (updated) {
+        const result = [...controls];
+        result[i] = { ...result[i], children: updated };
+        return result;
+      }
+    }
+  }
+  return null;
+}
+
+function isFloatInRange(val: string | number, min: number, max: number): boolean {
+  if (typeof val === 'number') return val >= min && val <= max;
+  const n = parseFloat(val);
+  return !isNaN(n) && n >= min && n <= max;
+}
