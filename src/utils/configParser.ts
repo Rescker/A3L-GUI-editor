@@ -4,6 +4,7 @@
 // =============================================================================
 
 import type { ControlConfig, DialogConfig, EventHandlerConfig, UIContainerType, SoundEntry, ScrollBarConfig, RectPos, StructuredAttributes, ImageAttributes, ColorArray } from '../types/controls';
+import { getPresetByParentClass } from '../data/componentLibrary';
 
 // =============================================================================
 // Editor Format Parser: $[version, [gridDef], [control1], [control2], ...]
@@ -236,45 +237,81 @@ function resolveControlInheritance(controls: ControlConfig[]): ControlConfig[] {
   const byName = new Map<string, ControlConfig>();
   for (const c of controls) byName.set(c.className, c);
 
-  return controls.map(child => {
-    // If parent class is one of the controls in the same dialog, merge
-    const parent = byName.get(child.parentClass);
-    if (!parent) return child;
+  // Iteratively resolve until stable (handles transitive chains like Key5→Key4→Key1)
+  const result = [...controls];
+  let changed = true;
+  let maxIterations = controls.length + 1;
+  while (changed && maxIterations-- > 0) {
+    changed = false;
+    for (let i = 0; i < result.length; i++) {
+      const child = result[i];
+      const parent = byName.get(child.parentClass);
+      if (!parent) continue;
 
-    // Merge: child properties override parent, but only for fields that
-    // still have their default values (meaning they weren't explicitly set)
-    return {
-      ...parent,
-      ...child,
-      // Always use child's identity fields
-      id: child.id,
-      className: child.className,
-      idc: child.idc,
-      eventHandlers: child.eventHandlers,
-      // For inheriting controls, use child's explicit values or fall back to parent
-      x: isDefaultValue(child.x, '0') ? parent.x : child.x,
-      y: isDefaultValue(child.y, '0') ? parent.y : child.y,
-      w: isDefaultValue(child.w, '10') ? parent.w : child.w,
-      h: isDefaultValue(child.h, '2') ? parent.h : child.h,
-      sizeEx: child.sizeEx === 4 ? parent.sizeEx : child.sizeEx,
-      font: child.font === 'RobotoCondensed' ? parent.font : child.font,
-      colorText: arraysEqual(child.colorText, [1, 1, 1, 1]) ? parent.colorText : child.colorText,
-      colorBackground: arraysEqual(child.colorBackground, [0, 0, 0, 0]) ? parent.colorBackground : child.colorBackground,
-      text: child.text === '' ? parent.text : child.text,
-      style: child.style === 0 ? parent.style : child.style,
-      type: child.type === 0 ? parent.type : child.type,
-    };
-  });
+      const merged = mergeWithParent(parent, child);
+      if (!shallowEqualControls(result[i], merged)) {
+        result[i] = merged;
+        byName.set(merged.className, merged);
+        changed = true;
+      }
+    }
+  }
+  return result;
 }
 
-function isDefaultValue(val: string | number, defaultStr: string): boolean {
-  if (typeof val === 'number') return val === parseFloat(defaultStr);
-  return val === defaultStr;
+function mergeWithParent(parent: ControlConfig, child: ControlConfig): ControlConfig {
+  const merged: ControlConfig = { ...parent };
+
+  for (const key of Object.keys(child) as (keyof ControlConfig)[]) {
+    if (key === 'id' || key === 'className' || key === 'idc' || key === 'eventHandlers' || key === 'children') {
+      (merged as unknown as Record<string, unknown>)[key] = child[key];
+      continue;
+    }
+    if (!isGenericDefault(key, child[key])) {
+      (merged as unknown as Record<string, unknown>)[key] = child[key];
+    }
+  }
+
+  merged.id = child.id;
+  merged.className = child.className;
+  merged.idc = child.idc;
+  merged.eventHandlers = child.eventHandlers;
+  merged.children = child.children;
+  return merged;
 }
 
-function arraysEqual(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((v, i) => Math.abs(v - b[i]) < 0.0001);
+function shallowEqualControls(a: ControlConfig, b: ControlConfig): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (k === 'children') continue;
+    const va = JSON.stringify((a as unknown as Record<string, unknown>)[k]);
+    const vb = JSON.stringify((b as unknown as Record<string, unknown>)[k]);
+    if (va !== vb) return false;
+  }
+  return true;
+}
+
+function isGenericDefault(key: string, val: unknown): boolean {
+  if (val === undefined) return true;
+  switch (key) {
+    case 'type': return val === 0;
+    case 'style': return val === 0;
+    case 'sizeEx': return val === 4 || val === '4';
+    case 'font': return val === 'RobotoCondensed';
+    case 'text': return val === '';
+    case 'tooltip': return val === '';
+    case 'shadow': return val === 0;
+    case 'x': return val === 0 || val === '0';
+    case 'y': return val === 0 || val === '0';
+    case 'w': return val === 10 || val === '10';
+    case 'h': return val === 2 || val === '2';
+    case 'colorText': return Array.isArray(val) && val.length === 4 && val[0] === 1 && val[1] === 1 && val[2] === 1 && val[3] === 1;
+    case 'colorBackground': return Array.isArray(val) && val.length === 4 && val[0] === 0 && val[1] === 0 && val[2] === 0 && val[3] === 0;
+    default:
+      if (val === false || val === 0 || val === '') return true;
+      if (Array.isArray(val) && val.length === 0) return true;
+      return false;
+  }
 }
 
 function parseControlList(body: string, zoneName: string, _defines: Map<string, string>): ControlConfig[] {
@@ -388,7 +425,7 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       ctrlType = inferTypeFromClassName(parentClass ?? className);
     }
 
-    return {
+    const result: ControlConfig = {
       id: generateId(),
       className,
       parentClass: parentClass ?? 'RscText',
@@ -598,6 +635,24 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       ptsPerSquareObj: parseOptionalInt(extractProperty(body, 'ptsPerSquareObj')),
       showCountourInterval: parseOptionalInt(extractProperty(body, 'showCountourInterval')),
     };
+    // Resolve framework class inheritance from COMPONENT_PRESETS
+    if (parentClass) {
+      const preset = getPresetByParentClass(parentClass);
+      if (preset) {
+        const base: Partial<ControlConfig> = { ...preset.defaultProperties };
+        // Merge: use base values where parsed has generic defaults
+        for (const key of Object.keys(base) as (keyof ControlConfig)[]) {
+          const baseVal = base[key];
+          if (baseVal === undefined) continue;
+          if (key === 'id' || key === 'className' || key === 'idc' || key === 'eventHandlers' || key === 'children') continue;
+          const parsedVal = (result as unknown as Record<string, unknown>)[key];
+          if (isGenericDefault(key, parsedVal)) {
+            (result as unknown as Record<string, unknown>)[key] = baseVal;
+          }
+        }
+      }
+    }
+    return result;
   } catch {
     return null;
   }

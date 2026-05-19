@@ -1187,6 +1187,11 @@ export function getPresetById(id: string): ComponentPreset | undefined {
   return COMPONENT_PRESETS.find(p => p.id === id);
 }
 
+export function getPresetByParentClass(parentClass: string): ComponentPreset | undefined {
+  const lower = parentClass.toLowerCase();
+  return COMPONENT_PRESETS.find(p => p.parentClass.toLowerCase() === lower);
+}
+
 export function getPresetsByCategory(): Record<string, ComponentPreset[]> {
   const map: Record<string, ComponentPreset[]> = {};
   for (const p of COMPONENT_PRESETS) {

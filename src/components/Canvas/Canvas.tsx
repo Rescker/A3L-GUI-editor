@@ -436,7 +436,11 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const handleCanvasMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === containerRef.current || (e.target as HTMLElement).dataset.canvas === 'true') {
+      const target = e.target as HTMLElement;
+      // Only deselect if clicking on canvas background (not a control or its handles)
+      const isOnControl = target.closest('[data-control-id]');
+      const isOnHandle = target.closest('[data-handle]');
+      if (!isOnControl && !isOnHandle) {
         if (!e.ctrlKey) {
           clearSelection();
         }

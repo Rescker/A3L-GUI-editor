@@ -16,19 +16,10 @@ export function computeSafeZone(
   canvasH: number,
   uiScale: string
 ): { x: number; y: number; w: number; h: number } {
-  const aspectRatio = canvasW / canvasH;
+  // Canvas-centric safeZone: the entire canvas IS the safeZone.
+  // This ensures GUI_GRID coordinates map directly to the visible canvas.
   const scale = UI_SCALE_FACTORS[uiScale] ?? 1.0;
-
-  // Real safeZoneW is typically 1.0 for single monitor
-  // safeZoneWAbs accounts for triple-head (min of w/h ratio capped at 1.2)
-  const wAbs = Math.min(aspectRatio, 1.2);
-  const hAbs = wAbs / 1.2;
-
-  // safeZone origin: centered on screen
-  const x = (1.0 - wAbs) / 2;
-  const y = (1.0 - hAbs) / 2;
-
-  return { x, y, w: wAbs * scale, h: hAbs * scale };
+  return { x: 0, y: 0, w: 1.0 * scale, h: 1.0 * scale };
 }
 
 // =============================================================================
@@ -36,13 +27,15 @@ export function computeSafeZone(
 // Based on \a3\ui_f\hpp\definecommongrids.inc
 // =============================================================================
 export function computeGuiGridUnits(safeZone: { x: number; y: number; w: number; h: number }) {
-  const wAbs = Math.min(safeZone.w / safeZone.h, 1.2);
-  const hAbs = wAbs / 1.2;
+  // Canvas-centric: 40 grid units across the full canvas width, 25 across height.
+  // safeZone is {x:0, y:0, w:1.0, h:1.0} so wAbs = 1.0, hAbs = 1.0.
+  const wAbs = 1.0;
+  const hAbs = 1.0;
   return {
-    gridW: wAbs / 40,
-    gridH: hAbs / 25,
+    gridW: 1 / 40,
+    gridH: 1 / 25,
     gridX: safeZone.x,
-    gridY: safeZone.y + safeZone.h - hAbs,
+    gridY: safeZone.y,
     wAbs,
     hAbs,
   };

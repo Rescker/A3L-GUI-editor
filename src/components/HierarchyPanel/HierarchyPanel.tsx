@@ -25,7 +25,12 @@ export const HierarchyPanel: React.FC = () => {
     addDialog,
   } = useEditorStore();
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; controlId: string; dialogId: string } | null>(null);
+  type ContextTarget =
+    | { type: 'control'; controlId: string; dialogId: string }
+    | { type: 'dialog'; dialogId: string }
+    | { type: 'empty' };
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextTarget } | null>(null);
   const [expandedDialogs, setExpandedDialogs] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -39,10 +44,10 @@ export const HierarchyPanel: React.FC = () => {
     });
   }, []);
 
-  const handleRightClick = useCallback((e: React.MouseEvent, controlId: string, dialogId: string) => {
+  const handleRightClick = useCallback((e: React.MouseEvent, target: ContextTarget) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, controlId, dialogId });
+    setContextMenu({ x: e.clientX, y: e.clientY, target });
   }, []);
 
   const containerTypeBadge = (type: UIContainerType) => {
@@ -114,7 +119,7 @@ export const HierarchyPanel: React.FC = () => {
               });
             }
           }}
-          onContextMenu={(e) => handleRightClick(e, ctrl.id, dialogId)}
+          onContextMenu={(e) => handleRightClick(e, { type: 'control', controlId: ctrl.id, dialogId })}
         >
           <span className="text-[10px] w-4 text-center opacity-70">{controlIcon(ctrl.type)}</span>
           <span className="truncate flex-1 font-mono">{ctrl.className}</span>
@@ -167,7 +172,10 @@ export const HierarchyPanel: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto">
         {dialogs.length === 0 ? (
-          <div className="p-4 text-center text-xs text-gray-500">
+          <div
+            className="p-4 text-center text-xs text-gray-500"
+            onContextMenu={(e) => handleRightClick(e, { type: 'empty' })}
+          >
             No dialogs yet. Click +D/+P/+H to create one.
           </div>
         ) : (
@@ -184,6 +192,7 @@ export const HierarchyPanel: React.FC = () => {
                     setActiveDialog(dialog.id);
                     toggleDialog(dialog.id);
                   }}
+                  onContextMenu={(e) => handleRightClick(e, { type: 'dialog', dialogId: dialog.id })}
                 >
                   <span className="text-xs">{isExpanded ? '▾' : '▸'}</span>
                   {containerTypeBadge(dialog.containerType)}
@@ -205,59 +214,124 @@ export const HierarchyPanel: React.FC = () => {
 
       {/* Context menu */}
       {contextMenu && (
-        <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setContextMenu(null)}
-          />
-          <div
-            className="fixed z-50 bg-surface border border-white/10 rounded-lg shadow-xl py-1 min-w-[140px]"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Control Actions</div>
-            <button
-              className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
-              onClick={() => { setContextMenu(null); }}
-            >
-              ✂ Duplicate
-            </button>
-            <button
-              className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
-              onClick={() => {
-                const dialogId = contextMenu.dialogId;
-                const controlId = contextMenu.controlId;
-                removeControl(dialogId, controlId);
-                setContextMenu(null);
-              }}
-            >
-              🗑 Delete
-            </button>
-            <div className="border-t border-white/10 my-1" />
-            <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Add Control</div>
-            {CONTROL_TYPES.slice(0, 12).map(ct => (
-              <button
-                key={ct.type}
-                className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
-                onClick={() => {
-                  addControl(contextMenu.dialogId, ct.type, 'controls');
-                  setContextMenu(null);
-                }}
+        (() => {
+          const t = contextMenu.target;
+          return (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setContextMenu(null)}
+              />
+              <div
+                className="fixed z-50 bg-surface border border-white/10 rounded-lg shadow-xl py-1 min-w-[140px]"
+                style={{ left: contextMenu.x, top: contextMenu.y }}
               >
-                {controlIcon(ct.type)} {ct.label}
-              </button>
-            ))}
-            <div className="border-t border-white/10 my-1" />
-            <button
-              className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
-              onClick={() => {
-                removeDialog(contextMenu.dialogId);
-                setContextMenu(null);
-              }}
-            >
-              🗑 Delete Dialog
-            </button>
-          </div>
-        </>
+                {t.type === 'control' && (
+                  <>
+                    <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Control Actions</div>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => { setContextMenu(null); }}
+                    >
+                      ✂ Duplicate
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
+                      onClick={() => {
+                        removeControl(t.dialogId, t.controlId);
+                        setContextMenu(null);
+                      }}
+                    >
+                      🗑 Delete
+                    </button>
+                    <div className="border-t border-white/10 my-1" />
+                    <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Add Control</div>
+                    {CONTROL_TYPES.slice(0, 12).map(ct => (
+                      <button
+                        key={ct.type}
+                        className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                        onClick={() => {
+                          addControl(t.dialogId, ct.type, 'controls');
+                          setContextMenu(null);
+                        }}
+                      >
+                        {controlIcon(ct.type)} {ct.label}
+                      </button>
+                    ))}
+                    <div className="border-t border-white/10 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
+                      onClick={() => {
+                        removeDialog(t.dialogId);
+                        setContextMenu(null);
+                      }}
+                    >
+                      🗑 Delete Dialog
+                    </button>
+                  </>
+                )}
+
+                {t.type === 'dialog' && (
+                  <>
+                    <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Dialog Actions</div>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        addControl(t.dialogId, 0, 'controls');
+                        setContextMenu(null);
+                      }}
+                    >
+                      + Add Static Text
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        addControl(t.dialogId, 1, 'controls');
+                        setContextMenu(null);
+                      }}
+                    >
+                      + Add Button
+                    </button>
+                    <div className="border-t border-white/10 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
+                      onClick={() => {
+                        removeDialog(t.dialogId);
+                        setContextMenu(null);
+                      }}
+                    >
+                      🗑 Delete Dialog
+                    </button>
+                  </>
+                )}
+
+                {t.type === 'empty' && (
+                  <>
+                    <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Create</div>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => { addDialog('dialog'); setContextMenu(null); }}
+                    >
+                      + New Dialog
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => { addDialog('display'); setContextMenu(null); }}
+                    >
+                      + New Display
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => { addDialog('hud'); setContextMenu(null); }}
+                    >
+                      + New HUD
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          );
+        })()
       )}
     </div>
   );
