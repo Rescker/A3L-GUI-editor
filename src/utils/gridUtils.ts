@@ -231,11 +231,12 @@ export function pixelToGridExpr(
       
     case 'safezone':
       // O SafeZone compensa as bordas negativadas para que o script final fique "safeZoneX + ..."
+      // AGORA SIM: A string vai formatada com a matemática macro real do Arma!
       return {
-        x: roundFloat((armaX - safeZone.x) / safeZone.w).toString(),
-        y: roundFloat((armaY - safeZone.y) / safeZone.h).toString(),
-        w: roundFloat(armaW / safeZone.w).toString(),
-        h: roundFloat(armaH / safeZone.h).toString(),
+        x: `${roundFloat((armaX - safeZone.x) / safeZone.w)} * safezoneW + safezoneX`,
+        y: `${roundFloat((armaY - safeZone.y) / safeZone.h)} * safezoneH + safezoneY`,
+        w: `${roundFloat(armaW / safeZone.w)} * safezoneW`,
+        h: `${roundFloat(armaH / safeZone.h)} * safezoneH`,
       };
       
     case 'gui_grid': {
