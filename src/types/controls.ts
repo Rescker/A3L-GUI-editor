@@ -135,9 +135,9 @@ export interface ControlConfig {
   sizeEx: number | string;
   font: string;
   colorText: ColorRGBA;
-  colorBackground: ColorRGBA;
+  colorBackground: ColorArray;
   colorDisabled?: ColorRGBA;
-  colorBackgroundActive?: ColorRGBA;
+  colorBackgroundActive?: ColorArray;
   text: string;
   shadow: ShadowType;
   tooltip: string;
@@ -208,6 +208,9 @@ export interface ControlConfig {
 
   // === Image preview (canvas-only, not exported) ===
   imageDataUrl?: string;
+
+  // === Property tracking for export inheritance ===
+  explicitProperties?: string[];
 
   // === Sound properties ===
   soundEnter?: SoundEntry;

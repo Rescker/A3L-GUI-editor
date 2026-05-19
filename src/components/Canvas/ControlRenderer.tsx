@@ -6,7 +6,7 @@
 import React, { useCallback } from 'react';
 import type { ControlConfig, GridSystem } from '../../types/controls';
 import { controlToCanvasCoords } from '../../utils/gridUtils';
-import { hasStyleFlag } from '../../utils/styleUtils';
+import { hasStyleFlag, resolveColorValue } from '../../utils/styleUtils';
 
 interface Props {
   control: ControlConfig;
@@ -52,7 +52,7 @@ export const ControlRenderer: React.FC<Props> = ({
 
   // Text color
   const textColor = `rgba(${control.colorText.map(v => Math.round(v * 255)).join(',')})`;
-  const bgColor = `rgba(${control.colorBackground.map(v => Math.round(v * 255)).join(',')})`;
+  const bgColor = `rgba(${resolveColorValue(control.colorBackground[0]) * 255 >> 0},${resolveColorValue(control.colorBackground[1]) * 255 >> 0},${resolveColorValue(control.colorBackground[2]) * 255 >> 0},${resolveColorValue(control.colorBackground[3])})`;
   const fontSize = (typeof control.sizeEx === 'number' ? control.sizeEx : 4) * scale * 3;
 
   // Configure rendering based on control type

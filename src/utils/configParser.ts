@@ -414,6 +414,17 @@ function inferTypeFromClassName(name: string): number {
   return 0; // default to CT_STATIC
 }
 
+function buildExplicitProperties(body: string): string[] {
+  // Match propertyName = value; or propertyName[] = {values};
+  const regex = /(\w+)(\[\])?\s*=\s*[^;]+;/g;
+  const names = new Set<string>();
+  let m;
+  while ((m = regex.exec(body)) !== null) {
+    names.add(m[1]);
+  }
+  return [...names];
+}
+
 function parseControlBlock(className: string, parentClass: string | undefined, body: string): ControlConfig | null {
   try {
     const explicitType = extractProperty(body, 'type');
@@ -438,9 +449,9 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       sizeEx: parseCoordValue(extractProperty(body, 'sizeEx') ?? '4'),
       font: extractProperty(body, 'font') ?? 'RobotoCondensed',
       colorText: parseColorArray(extractProperty(body, 'colorText')) ?? [1, 1, 1, 1],
-      colorBackground: parseColorArray(extractProperty(body, 'colorBackground')) ?? [0, 0, 0, 0],
+      colorBackground: parseColorOrSqf(extractProperty(body, 'colorBackground')) ?? [0, 0, 0, 0],
       colorDisabled: parseColorArray(extractProperty(body, 'colorDisabled')),
-      colorBackgroundActive: parseColorArray(extractProperty(body, 'colorBackgroundActive')),
+      colorBackgroundActive: parseColorOrSqf(extractProperty(body, 'colorBackgroundActive')),
       text: extractProperty(body, 'text') ?? '',
       shadow: (parseInt(extractProperty(body, 'shadow') ?? '0')) as 0 | 1 | 2,
       tooltip: extractProperty(body, 'tooltip') ?? '',
@@ -635,6 +646,10 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       ptsPerSquareObj: parseOptionalInt(extractProperty(body, 'ptsPerSquareObj')),
       showCountourInterval: parseOptionalInt(extractProperty(body, 'showCountourInterval')),
     };
+
+    // Track which properties were explicitly parsed (not defaulted)
+    result.explicitProperties = buildExplicitProperties(body);
+
     // Resolve framework class inheritance from COMPONENT_PRESETS
     if (parentClass) {
       const preset = getPresetByParentClass(parentClass);

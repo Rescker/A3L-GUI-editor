@@ -2,7 +2,28 @@
 // Style Flag Utilities — Bitwise operations for Arma 3 control styles
 // =============================================================================
 
-import type { ControlType, StyleFlagInfo } from '../types/controls';
+import type { ControlType, StyleFlagInfo, ColorElement, ColorRGBA, ColorArray } from '../types/controls';
+
+// =============================================================================
+// Color helpers — resolve string SQF expressions in color arrays
+// =============================================================================
+export function resolveColorValue(v: ColorElement): number {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+
+export function colorArrayToRgba(arr: ColorArray): string {
+  const r = resolveColorValue(arr[0]);
+  const g = resolveColorValue(arr[1]);
+  const b = resolveColorValue(arr[2]);
+  const a = resolveColorValue(arr[3]);
+  return `rgba(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)},${a.toFixed(2)})`;
+}
+
+export function rgbaToColorArray(rgba: ColorRGBA): ColorArray {
+  return [rgba[0], rgba[1], rgba[2], rgba[3]];
+}
 
 // =============================================================================
 // All style flags with metadata

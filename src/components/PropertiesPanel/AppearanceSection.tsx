@@ -6,7 +6,7 @@ import React, { useCallback, useRef } from 'react';
 import { useEditorStore } from '../../store/editorStore';
 import { CollapsibleSection, Field } from './PropertiesPanel';
 import { FONT_LIST } from '../../data/fontList';
-import { hasStyleFlag } from '../../utils/styleUtils';
+import { hasStyleFlag, resolveColorValue } from '../../utils/styleUtils';
 import { pixelToGridExpr } from '../../utils/gridUtils';
 
 export const AppearanceSection: React.FC = () => {
@@ -104,33 +104,43 @@ export const AppearanceSection: React.FC = () => {
 
         <Field label="Background Color (RGBA)">
           <div className="flex items-center gap-2">
-            <input
-              type="color"
-              className="w-8 h-8 rounded cursor-pointer border border-white/10"
-              value={rgbaToHex(ctrl.colorBackground)}
-              onChange={(e) => {
-                const rgba = hexToRgba(e.target.value, ctrl.colorBackground[3]);
-                updateControl(activeDialogId, ctrl.id, { colorBackground: rgba });
-              }}
-            />
-            <div className="flex-1 grid grid-cols-4 gap-1">
-              {ctrl.colorBackground.map((v, i) => (
+            {ctrl.colorBackground.every(v => typeof v === 'number') ? (
+              <>
                 <input
-                  key={i}
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  className="w-full bg-surface-light border border-white/10 rounded px-1 py-0.5 text-[10px] text-white text-center"
-                  value={v}
+                  type="color"
+                  className="w-8 h-8 rounded cursor-pointer border border-white/10"
+                  value={rgbaToHex(ctrl.colorBackground as [number, number, number, number])}
                   onChange={(e) => {
-                    const newColor = [...ctrl.colorBackground] as [number, number, number, number];
-                    newColor[i] = Math.min(1, Math.max(0, parseFloat(e.target.value) || 0));
-                    updateControl(activeDialogId, ctrl.id, { colorBackground: newColor });
+                    const rgba = hexToRgba(e.target.value, resolveColorValue(ctrl.colorBackground[3]));
+                    updateControl(activeDialogId, ctrl.id, { colorBackground: rgba });
                   }}
                 />
-              ))}
-            </div>
+                <div className="flex-1 grid grid-cols-4 gap-1">
+                  {(ctrl.colorBackground as number[]).map((v, i) => (
+                    <input
+                      key={i}
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      className="w-full bg-surface-light border border-white/10 rounded px-1 py-0.5 text-[10px] text-white text-center"
+                      value={v}
+                      onChange={(e) => {
+                        const newColor = [...ctrl.colorBackground] as [number, number, number, number];
+                        newColor[i] = Math.min(1, Math.max(0, parseFloat(e.target.value) || 0));
+                        updateControl(activeDialogId, ctrl.id, { colorBackground: newColor });
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <input
+                className="w-full bg-surface-light border border-white/10 rounded px-2 py-1 text-xs text-yellow-400"
+                value={`{${ctrl.colorBackground.join(', ')}}`}
+                readOnly
+              />
+            )}
           </div>
         </Field>
 

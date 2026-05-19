@@ -180,6 +180,18 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   const tab = ' '.repeat(opts.indentSize * (depth + opts.tabCount));
   const indent = ' '.repeat(opts.indentSize * (depth + opts.tabCount + 1));
 
+  // Inheritance-aware: when using a parent class, only emit explicitly-set properties
+  const explicit = ctrl.explicitProperties ?? [];
+  const isInherited = opts.useInheritance && !!ctrl.parentClass;
+  const shouldEmit = (propName: string): boolean => {
+    if (!isInherited) return true;
+    return explicit.includes(propName);
+  };
+  // Always emit position/size, idc, text, event handlers
+  const alwaysEmit = isInherited
+    ? new Set(explicit)
+    : null;
+
   // idc comment for special IDCs
   const specialComments: Record<number, string> = {
     1: ' // IDC_OK — closes dialog, exit code 1',
@@ -226,74 +238,74 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   lines.push(`${indent}h = ${formatCoordExpr(ctrl.h)};`);
 
   // Font & size
-  if (ctrl.font) {
+  if (shouldEmit('font') && ctrl.font && ctrl.font !== 'RobotoCondensed') {
     lines.push(`${indent}font = "${escapeString(ctrl.font)}";`);
   }
-  if (ctrl.sizeEx) {
+  if (shouldEmit('sizeEx') && ctrl.sizeEx && ctrl.sizeEx !== 4 && ctrl.sizeEx !== '4') {
     lines.push(`${indent}sizeEx = ${ctrl.sizeEx};`);
   }
 
   // Colors
-  if (!arraysEqual(ctrl.colorText, [1, 1, 1, 1])) {
+  if (shouldEmit('colorText') && !arraysEqual(ctrl.colorText, [1, 1, 1, 1])) {
     lines.push(`${indent}colorText[] = {${ctrl.colorText.map(v => v.toFixed(2)).join(', ')}};`);
   }
-  if (!arraysEqual(ctrl.colorBackground, [0, 0, 0, 0])) {
-    lines.push(`${indent}colorBackground[] = {${ctrl.colorBackground.map(v => v.toFixed(2)).join(', ')}};`);
+  if (shouldEmit('colorBackground') && !colorArraysEqual(ctrl.colorBackground, [0, 0, 0, 0])) {
+    lines.push(`${indent}colorBackground[] = {${formatColorElementArray(ctrl.colorBackground)}};`);
   }
-  if (ctrl.colorDisabled && !arraysEqual(ctrl.colorDisabled, [1, 1, 1, 0.25])) {
+  if (shouldEmit('colorDisabled') && ctrl.colorDisabled && !arraysEqual(ctrl.colorDisabled, [1, 1, 1, 0.25])) {
     lines.push(`${indent}colorDisabled[] = {${ctrl.colorDisabled.map(v => v.toFixed(2)).join(', ')}};`);
   }
-  if (ctrl.colorBackgroundActive) {
-    lines.push(`${indent}colorBackgroundActive[] = {${ctrl.colorBackgroundActive.map(v => v.toFixed(2)).join(', ')}};`);
+  if (shouldEmit('colorBackgroundActive') && ctrl.colorBackgroundActive && !colorArraysEqual(ctrl.colorBackgroundActive, [0, 0, 0, 0])) {
+    lines.push(`${indent}colorBackgroundActive[] = {${formatColorElementArray(ctrl.colorBackgroundActive)}};`);
   }
 
   // Text
-  if (ctrl.text) {
+  if (shouldEmit('text') && ctrl.text) {
     lines.push(`${indent}text = "${escapeString(ctrl.text)}";`);
   }
 
   // Shadow
-  if (ctrl.shadow !== 0) {
+  if (shouldEmit('shadow') && ctrl.shadow !== 0) {
     lines.push(`${indent}shadow = ${ctrl.shadow};`);
   }
 
   // Tooltip
-  if (ctrl.tooltip) {
+  if (shouldEmit('tooltip') && ctrl.tooltip) {
     lines.push(`${indent}tooltip = "${escapeString(ctrl.tooltip)}";`);
   }
-  if (ctrl.tooltipColorText) {
+  if (shouldEmit('tooltipColorText') && ctrl.tooltipColorText) {
     lines.push(`${indent}tooltipColorText[] = {${ctrl.tooltipColorText.map(v => v.toFixed(2)).join(', ')}};`);
   }
-  if (ctrl.tooltipColorBox) {
+  if (shouldEmit('tooltipColorBox') && ctrl.tooltipColorBox) {
     lines.push(`${indent}tooltipColorBox[] = {${ctrl.tooltipColorBox.map(v => v.toFixed(2)).join(', ')}};`);
   }
-  if (ctrl.tooltipColorShade) {
+  if (shouldEmit('tooltipColorShade') && ctrl.tooltipColorShade) {
     lines.push(`${indent}tooltipColorShade[] = {${ctrl.tooltipColorShade.map(v => v.toFixed(2)).join(', ')}};`);
   }
 
   // Behavior
-  if (ctrl.moving) {
+  if (shouldEmit('moving') && ctrl.moving) {
     lines.push(`${indent}moving = 1;`);
   }
-  if (ctrl.url) {
+  if (shouldEmit('url') && ctrl.url) {
     lines.push(`${indent}url = "${escapeString(ctrl.url)}";`);
   }
-  if (ctrl.overlayMode !== undefined) {
+  if (shouldEmit('overlayMode') && ctrl.overlayMode !== undefined && ctrl.overlayMode !== 0) {
     lines.push(`${indent}overlayMode = ${ctrl.overlayMode};`);
   }
-  if (ctrl.canDrag !== undefined) {
+  if (shouldEmit('canDrag') && ctrl.canDrag !== undefined && ctrl.canDrag !== false) {
     lines.push(`${indent}canDrag = ${ctrl.canDrag ? 1 : 0};`);
   }
-  if (ctrl.deletable !== undefined) {
+  if (shouldEmit('deletable') && ctrl.deletable !== undefined) {
     lines.push(`${indent}deletable = ${ctrl.deletable};`);
   }
-  if (ctrl.fade !== undefined) {
+  if (shouldEmit('fade') && ctrl.fade !== undefined && ctrl.fade !== 0) {
     lines.push(`${indent}fade = ${ctrl.fade};`);
   }
-  if (ctrl.access !== undefined) {
+  if (shouldEmit('access') && ctrl.access !== undefined && ctrl.access !== 0) {
     lines.push(`${indent}access = ${ctrl.access};`);
   }
-  if (ctrl.onLoad) {
+  if (shouldEmit('onLoad') && ctrl.onLoad) {
     lines.push(`${indent}onLoad = "${escapeString(ctrl.onLoad)}";`);
   }
 
@@ -318,16 +330,16 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   }
 
   // === Default / BlinkingPeriod ===
-  if (ctrl.default !== undefined) {
+  if (shouldEmit('default') && ctrl.default !== undefined && ctrl.default !== 0) {
     lines.push(`${indent}default = ${ctrl.default};`);
   }
-  if (ctrl.blinkingPeriod !== undefined && ctrl.blinkingPeriod !== 0) {
+  if (shouldEmit('blinkingPeriod') && ctrl.blinkingPeriod !== undefined && ctrl.blinkingPeriod !== 0) {
     lines.push(`${indent}blinkingPeriod = ${ctrl.blinkingPeriod};`);
   }
 
   // === Checkbox textures (type 77) ===
-  if (ctrl.textureChecked) lines.push(`${indent}textureChecked = "${escapeString(ctrl.textureChecked)}";`);
-  if (ctrl.textureUnchecked) lines.push(`${indent}textureUnchecked = "${escapeString(ctrl.textureUnchecked)}";`);
+  if (shouldEmit('textureChecked') && ctrl.textureChecked) lines.push(`${indent}textureChecked = "${escapeString(ctrl.textureChecked)}";`);
+  if (shouldEmit('textureUnchecked') && ctrl.textureUnchecked) lines.push(`${indent}textureUnchecked = "${escapeString(ctrl.textureUnchecked)}";`);
   if (ctrl.textureFocusedChecked) lines.push(`${indent}textureFocusedChecked = "${escapeString(ctrl.textureFocusedChecked)}";`);
   if (ctrl.textureFocusedUnchecked) lines.push(`${indent}textureFocusedUnchecked = "${escapeString(ctrl.textureFocusedUnchecked)}";`);
   if (ctrl.textureHoverChecked) lines.push(`${indent}textureHoverChecked = "${escapeString(ctrl.textureHoverChecked)}";`);
@@ -364,30 +376,30 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   if (ctrl.colorBackground2) lines.push(`${indent}colorBackground2[] = {${ctrl.colorBackground2.map(v => v.toFixed(2)).join(', ')}};`);
 
   // === Sound arrays ===
-  if (ctrl.soundEnter) lines.push(`${indent}soundEnter[] = ${formatSound(ctrl.soundEnter)};`);
-  if (ctrl.soundPush) lines.push(`${indent}soundPush[] = ${formatSound(ctrl.soundPush)};`);
-  if (ctrl.soundClick) lines.push(`${indent}soundClick[] = ${formatSound(ctrl.soundClick)};`);
-  if (ctrl.soundEscape) lines.push(`${indent}soundEscape[] = ${formatSound(ctrl.soundEscape)};`);
+  if (shouldEmit('soundEnter') && ctrl.soundEnter) lines.push(`${indent}soundEnter[] = ${formatSound(ctrl.soundEnter)};`);
+  if (shouldEmit('soundPush') && ctrl.soundPush) lines.push(`${indent}soundPush[] = ${formatSound(ctrl.soundPush)};`);
+  if (shouldEmit('soundClick') && ctrl.soundClick) lines.push(`${indent}soundClick[] = ${formatSound(ctrl.soundClick)};`);
+  if (shouldEmit('soundEscape') && ctrl.soundEscape) lines.push(`${indent}soundEscape[] = ${formatSound(ctrl.soundEscape)};`);
   if (ctrl.soundSelect) lines.push(`${indent}soundSelect[] = ${formatSound(ctrl.soundSelect)};`);
   if (ctrl.soundExpand) lines.push(`${indent}soundExpand[] = ${formatSound(ctrl.soundExpand)};`);
   if (ctrl.soundCollapse) lines.push(`${indent}soundCollapse[] = ${formatSound(ctrl.soundCollapse)};`);
 
   // === Button-specific (type 1) ===
-  if (ctrl.offsetX !== undefined) lines.push(`${indent}offsetX = ${ctrl.offsetX};`);
-  if (ctrl.offsetY !== undefined) lines.push(`${indent}offsetY = ${ctrl.offsetY};`);
-  if (ctrl.offsetPressedX !== undefined) lines.push(`${indent}offsetPressedX = ${ctrl.offsetPressedX};`);
-  if (ctrl.offsetPressedY !== undefined) lines.push(`${indent}offsetPressedY = ${ctrl.offsetPressedY};`);
+  if (shouldEmit('offsetX') && ctrl.offsetX !== undefined) lines.push(`${indent}offsetX = ${ctrl.offsetX};`);
+  if (shouldEmit('offsetY') && ctrl.offsetY !== undefined) lines.push(`${indent}offsetY = ${ctrl.offsetY};`);
+  if (shouldEmit('offsetPressedX') && ctrl.offsetPressedX !== undefined) lines.push(`${indent}offsetPressedX = ${ctrl.offsetPressedX};`);
+  if (shouldEmit('offsetPressedY') && ctrl.offsetPressedY !== undefined) lines.push(`${indent}offsetPressedY = ${ctrl.offsetPressedY};`);
 
   // === ShortcutButton-specific (type 16) ===
-  if (ctrl.animTextureNormal) lines.push(`${indent}animTextureNormal = "${escapeString(ctrl.animTextureNormal)}";`);
-  if (ctrl.animTextureDisabled) lines.push(`${indent}animTextureDisabled = "${escapeString(ctrl.animTextureDisabled)}";`);
-  if (ctrl.animTextureOver) lines.push(`${indent}animTextureOver = "${escapeString(ctrl.animTextureOver)}";`);
-  if (ctrl.animTextureFocused) lines.push(`${indent}animTextureFocused = "${escapeString(ctrl.animTextureFocused)}";`);
-  if (ctrl.animTexturePressed) lines.push(`${indent}animTexturePressed = "${escapeString(ctrl.animTexturePressed)}";`);
-  if (ctrl.animTextureDefault) lines.push(`${indent}animTextureDefault = "${escapeString(ctrl.animTextureDefault)}";`);
-  if (ctrl.period !== undefined) lines.push(`${indent}period = ${ctrl.period};`);
-  if (ctrl.periodFocus !== undefined) lines.push(`${indent}periodFocus = ${ctrl.periodFocus};`);
-  if (ctrl.periodOver !== undefined) lines.push(`${indent}periodOver = ${ctrl.periodOver};`);
+  if (shouldEmit('animTextureNormal') && ctrl.animTextureNormal) lines.push(`${indent}animTextureNormal = "${escapeString(ctrl.animTextureNormal)}";`);
+  if (shouldEmit('animTextureDisabled') && ctrl.animTextureDisabled) lines.push(`${indent}animTextureDisabled = "${escapeString(ctrl.animTextureDisabled)}";`);
+  if (shouldEmit('animTextureOver') && ctrl.animTextureOver) lines.push(`${indent}animTextureOver = "${escapeString(ctrl.animTextureOver)}";`);
+  if (shouldEmit('animTextureFocused') && ctrl.animTextureFocused) lines.push(`${indent}animTextureFocused = "${escapeString(ctrl.animTextureFocused)}";`);
+  if (shouldEmit('animTexturePressed') && ctrl.animTexturePressed) lines.push(`${indent}animTexturePressed = "${escapeString(ctrl.animTexturePressed)}";`);
+  if (shouldEmit('animTextureDefault') && ctrl.animTextureDefault) lines.push(`${indent}animTextureDefault = "${escapeString(ctrl.animTextureDefault)}";`);
+  if (shouldEmit('period') && ctrl.period !== undefined && ctrl.period !== 0) lines.push(`${indent}period = ${ctrl.period};`);
+  if (shouldEmit('periodFocus') && ctrl.periodFocus !== undefined && ctrl.periodFocus !== 0) lines.push(`${indent}periodFocus = ${ctrl.periodFocus};`);
+  if (shouldEmit('periodOver') && ctrl.periodOver !== undefined && ctrl.periodOver !== 0) lines.push(`${indent}periodOver = ${ctrl.periodOver};`);
   if (ctrl.action) lines.push(`${indent}action = "${escapeString(ctrl.action)}";`);
   if (ctrl.textureNoShortcut !== undefined) lines.push(`${indent}textureNoShortcut = "${escapeString(ctrl.textureNoShortcut)}";`);
   if (ctrl.hitZone) {
@@ -485,10 +497,10 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   if (ctrl.hiddenTexture) lines.push(`${indent}hiddenTexture = "${escapeString(ctrl.hiddenTexture)}";`);
 
   // === StructuredText specific (type 13) ===
-  if (ctrl.size !== undefined) {
+  if (shouldEmit('size') && ctrl.size !== undefined && ctrl.size !== 0 && ctrl.size !== '0') {
     lines.push(`${indent}size = ${typeof ctrl.size === 'number' ? ctrl.size : `"${ctrl.size}"`};`);
   }
-  if (ctrl.structuredAttributes) {
+  if (shouldEmit('structuredAttributes') && ctrl.structuredAttributes) {
     lines.push(`${indent}class Attributes`);
     lines.push(`${indent}{`);
     lines.push(`${indent}${indentRef(1)}font = "${escapeString(ctrl.structuredAttributes.font)}";`);
@@ -539,18 +551,18 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   if (ctrl.maxSatelliteAlpha !== undefined) lines.push(`${indent}maxSatelliteAlpha = ${ctrl.maxSatelliteAlpha};`);
   if (ctrl.alphaFadeStartScale !== undefined) lines.push(`${indent}alphaFadeStartScale = ${ctrl.alphaFadeStartScale};`);
   if (ctrl.alphaFadeEndScale !== undefined) lines.push(`${indent}alphaFadeEndScale = ${ctrl.alphaFadeEndScale};`);
-  if (ctrl.fontLabel) lines.push(`${indent}fontLabel = "${escapeString(ctrl.fontLabel)}";`);
-  if (ctrl.sizeExLabel !== undefined) lines.push(`${indent}sizeExLabel = ${formatCoordExpr(ctrl.sizeExLabel)};`);
-  if (ctrl.fontGrid) lines.push(`${indent}fontGrid = "${escapeString(ctrl.fontGrid)}";`);
-  if (ctrl.sizeExGrid !== undefined) lines.push(`${indent}sizeExGrid = ${ctrl.sizeExGrid};`);
-  if (ctrl.fontUnits) lines.push(`${indent}fontUnits = "${escapeString(ctrl.fontUnits)}";`);
-  if (ctrl.sizeExUnits !== undefined) lines.push(`${indent}sizeExUnits = ${formatCoordExpr(ctrl.sizeExUnits)};`);
-  if (ctrl.fontNames) lines.push(`${indent}fontNames = "${escapeString(ctrl.fontNames)}";`);
-  if (ctrl.sizeExNames !== undefined) lines.push(`${indent}sizeExNames = ${formatCoordExpr(ctrl.sizeExNames)};`);
-  if (ctrl.fontInfo) lines.push(`${indent}fontInfo = "${escapeString(ctrl.fontInfo)}";`);
-  if (ctrl.sizeExInfo !== undefined) lines.push(`${indent}sizeExInfo = ${formatCoordExpr(ctrl.sizeExInfo)};`);
-  if (ctrl.fontLevel) lines.push(`${indent}fontLevel = "${escapeString(ctrl.fontLevel)}";`);
-  if (ctrl.sizeExLevel !== undefined) lines.push(`${indent}sizeExLevel = ${ctrl.sizeExLevel};`);
+  if (shouldEmit('fontLabel') && ctrl.fontLabel) lines.push(`${indent}fontLabel = "${escapeString(ctrl.fontLabel)}";`);
+  if (shouldEmit('sizeExLabel') && ctrl.sizeExLabel !== undefined && ctrl.sizeExLabel !== 0) lines.push(`${indent}sizeExLabel = ${formatCoordExpr(ctrl.sizeExLabel)};`);
+  if (shouldEmit('fontGrid') && ctrl.fontGrid) lines.push(`${indent}fontGrid = "${escapeString(ctrl.fontGrid)}";`);
+  if (shouldEmit('sizeExGrid') && ctrl.sizeExGrid !== undefined && ctrl.sizeExGrid !== 0) lines.push(`${indent}sizeExGrid = ${ctrl.sizeExGrid};`);
+  if (shouldEmit('fontUnits') && ctrl.fontUnits) lines.push(`${indent}fontUnits = "${escapeString(ctrl.fontUnits)}";`);
+  if (shouldEmit('sizeExUnits') && ctrl.sizeExUnits !== undefined && ctrl.sizeExUnits !== 0) lines.push(`${indent}sizeExUnits = ${formatCoordExpr(ctrl.sizeExUnits)};`);
+  if (shouldEmit('fontNames') && ctrl.fontNames) lines.push(`${indent}fontNames = "${escapeString(ctrl.fontNames)}";`);
+  if (shouldEmit('sizeExNames') && ctrl.sizeExNames !== undefined && ctrl.sizeExNames !== 0) lines.push(`${indent}sizeExNames = ${formatCoordExpr(ctrl.sizeExNames)};`);
+  if (shouldEmit('fontInfo') && ctrl.fontInfo) lines.push(`${indent}fontInfo = "${escapeString(ctrl.fontInfo)}";`);
+  if (shouldEmit('sizeExInfo') && ctrl.sizeExInfo !== undefined && ctrl.sizeExInfo !== 0) lines.push(`${indent}sizeExInfo = ${formatCoordExpr(ctrl.sizeExInfo)};`);
+  if (shouldEmit('fontLevel') && ctrl.fontLevel) lines.push(`${indent}fontLevel = "${escapeString(ctrl.fontLevel)}";`);
+  if (shouldEmit('sizeExLevel') && ctrl.sizeExLevel !== undefined && ctrl.sizeExLevel !== 0) lines.push(`${indent}sizeExLevel = ${ctrl.sizeExLevel};`);
   if (ctrl.moveOnEdges !== undefined) lines.push(`${indent}moveOnEdges = ${ctrl.moveOnEdges};`);
   if (ctrl.widthRailWay !== undefined) lines.push(`${indent}widthRailWay = ${ctrl.widthRailWay};`);
   if (ctrl.ptsPerSquareSea !== undefined) lines.push(`${indent}ptsPerSquareSea = ${ctrl.ptsPerSquareSea};`);
@@ -648,7 +660,12 @@ function escapeString(s: string): string {
 
 function arraysEqual(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((v, i) => Math.abs(v - b[i]) < 0.001);
+  return a.every((v, i) => Math.abs(v - b[i]) < 0.0001);
+}
+
+function colorArraysEqual(a: import('../types/controls').ColorArray, b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => typeof v === 'number' && Math.abs(v - b[i]) < 0.0001);
 }
 
 function getExportControls(dialog: DialogConfig, opts: GeneratorOptions): ControlConfig[] {
