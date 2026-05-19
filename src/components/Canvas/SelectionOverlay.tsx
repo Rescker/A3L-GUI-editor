@@ -7,7 +7,7 @@ import React from 'react';
 import type { ControlConfig, GridSystem } from '../../types/controls';
 import { controlToCanvasCoords } from '../../utils/gridUtils';
 
-type ResizeDir = 'nw' | 'ne' | 'sw' | 'se';
+type ResizeDir = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
 interface Props {
   controls: ControlConfig[];
@@ -27,6 +27,13 @@ const HANDLES: { dir: ResizeDir; cursor: string }[] = [
   { dir: 'ne', cursor: 'nesw-resize' },
   { dir: 'sw', cursor: 'nesw-resize' },
   { dir: 'se', cursor: 'nwse-resize' },
+];
+
+const EDGE_HANDLES: { dir: ResizeDir; cursor: string }[] = [
+  { dir: 'n', cursor: 'ns-resize' },
+  { dir: 's', cursor: 'ns-resize' },
+  { dir: 'e', cursor: 'ew-resize' },
+  { dir: 'w', cursor: 'ew-resize' },
 ];
 
 export const SelectionOverlay: React.FC<Props> = ({
@@ -90,6 +97,47 @@ export const SelectionOverlay: React.FC<Props> = ({
                     width: handleSize * 2,
                     height: handleSize * 2,
                     backgroundColor: '#e94560',
+                    border: '1px solid white',
+                    borderRadius: 1,
+                    cursor: handle.cursor,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onHandleMouseDown(ctrl.id, handle.dir, e);
+                  }}
+                />
+              );
+            })}
+
+            {/* Edge handles */}
+            {EDGE_HANDLES.map((handle, i) => {
+              const midX = x + w / 2 - handleSize;
+              const midY = y + h / 2 - handleSize;
+              const hx =
+                handle.dir === 'w'
+                  ? x - handleSize
+                  : handle.dir === 'e'
+                    ? x + w - handleSize
+                    : midX;
+              const hy =
+                handle.dir === 'n'
+                  ? y - handleSize
+                  : handle.dir === 's'
+                    ? y + h - handleSize
+                    : midY;
+
+              return (
+                <div
+                  key={`edge-${i}`}
+                  data-handle="resize"
+                  className="absolute z-20"
+                  style={{
+                    left: hx,
+                    top: hy,
+                    width: handleSize * 2,
+                    height: handleSize * 2,
+                    backgroundColor: '#3b82f6',
                     border: '1px solid white',
                     borderRadius: 1,
                     cursor: handle.cursor,

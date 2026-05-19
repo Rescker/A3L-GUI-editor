@@ -10,6 +10,8 @@ import {
   controlToCanvasCoords,
   computeSafeZone,
   pixelToGridExpr,
+  applyExpressionDelta,
+  computePixelToGridScale,
 } from '../../utils/gridUtils';
 import { ControlRenderer } from './ControlRenderer';
 import { SelectionOverlay } from './SelectionOverlay';
@@ -19,7 +21,7 @@ import type { ControlConfig, GridSystem } from '../../types/controls';
 // =============================================================================
 // Resize handle direction
 // =============================================================================
-type ResizeDir = 'nw' | 'ne' | 'sw' | 'se';
+type ResizeDir = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
 // =============================================================================
 // Drag state
@@ -30,6 +32,8 @@ interface DragState {
   startPixelY: number;
   startPixelW: number;
   startPixelH: number;
+  startExprX: string | number;
+  startExprY: string | number;
   offsetX: number;
   offsetY: number;
 }
@@ -41,6 +45,10 @@ interface ResizeState {
   startPixelY: number;
   startPixelW: number;
   startPixelH: number;
+  startExprX: string | number;
+  startExprY: string | number;
+  startExprW: string | number;
+  startExprH: string | number;
   offsetX: number;
   offsetY: number;
 }
@@ -243,12 +251,15 @@ export const Canvas: React.FC = () => {
         const store = useEditorStore.getState();
         const selectedIds = store.selectedControlIds;
         const isMultiDrag = selectedIds.length > 1 && selectedIds.includes(ds.controlId);
+        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
 
         if (isMultiDrag) {
           const currentX = canvasMouse.x - ds.offsetX;
           const currentY = canvasMouse.y - ds.offsetY;
           const deltaX = currentX - ds.startPixelX;
           const deltaY = currentY - ds.startPixelY;
+          const deltaGridX = deltaX / gridScale.scaleX;
+          const deltaGridY = deltaY / gridScale.scaleY;
 
           const updates: { id: string; x: number | string; y: number | string }[] = [];
           for (const id of selectedIds) {
@@ -258,9 +269,14 @@ export const Canvas: React.FC = () => {
             const newPx = cCoords.x + deltaX;
             const newPy = cCoords.y + deltaY;
             const clamped = clampToCanvas(newPx, newPy, cCoords.w, cCoords.h);
-            const gridExpr = pixelToCurrentGrid(clamped.x, clamped.y, cCoords.w, cCoords.h);
-            let x = gridExpr.x;
-            let y = gridExpr.y;
+            const clampedDeltaX = clamped.x - cCoords.x;
+            const clampedDeltaY = clamped.y - cCoords.y;
+            const clampedDeltaGridX = clampedDeltaX / gridScale.scaleX;
+            const clampedDeltaGridY = clampedDeltaY / gridScale.scaleY;
+            const xExpr = applyExpressionDelta(ctrl.x, clampedDeltaGridX);
+            const yExpr = applyExpressionDelta(ctrl.y, clampedDeltaGridY);
+            let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+            let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
             if (snapToGrid) {
               x = snapGridValue(x);
               y = snapGridValue(y);
@@ -278,9 +294,12 @@ export const Canvas: React.FC = () => {
           newPx = clamped.x;
           newPy = clamped.y;
 
-          const gridExpr = pixelToCurrentGrid(newPx, newPy, ds.startPixelW, ds.startPixelH);
-          let x = gridExpr.x;
-          let y = gridExpr.y;
+          const deltaGridX = (newPx - ds.startPixelX) / gridScale.scaleX;
+          const deltaGridY = (newPy - ds.startPixelY) / gridScale.scaleY;
+          const xExpr = applyExpressionDelta(ds.startExprX, deltaGridX);
+          const yExpr = applyExpressionDelta(ds.startExprY, deltaGridY);
+          let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+          let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
           if (snapToGrid) {
             x = snapGridValue(x);
             y = snapGridValue(y);
@@ -321,6 +340,20 @@ export const Canvas: React.FC = () => {
             newPw = rs.startPixelW - deltaX;
             newPh = rs.startPixelH - deltaY;
             break;
+          case 'n':
+            newPy = rs.startPixelY + deltaY;
+            newPh = rs.startPixelH - deltaY;
+            break;
+          case 's':
+            newPh = rs.startPixelH + deltaY;
+            break;
+          case 'e':
+            newPw = rs.startPixelW + deltaX;
+            break;
+          case 'w':
+            newPx = rs.startPixelX + deltaX;
+            newPw = rs.startPixelW - deltaX;
+            break;
         }
 
         const constrained = enforceMinSize(newPw, newPh);
@@ -328,13 +361,13 @@ export const Canvas: React.FC = () => {
         newPh = constrained.h;
 
         // Recalculate position if width/height were clamped
-        if (constrained.w !== rs.startPixelW + deltaX) {
-          if (rs.dir === 'sw' || rs.dir === 'nw') {
+        if (constrained.w !== (rs.startPixelW + (rs.dir === 'w' || rs.dir === 'nw' || rs.dir === 'sw' ? -deltaX : deltaX))) {
+          if (rs.dir === 'sw' || rs.dir === 'nw' || rs.dir === 'w') {
             newPx = rs.startPixelX + rs.startPixelW - newPw;
           }
         }
-        if (constrained.h !== rs.startPixelH + deltaY) {
-          if (rs.dir === 'ne' || rs.dir === 'nw') {
+        if (constrained.h !== (rs.startPixelH + (rs.dir === 'n' || rs.dir === 'ne' || rs.dir === 'nw' ? -deltaY : deltaY))) {
+          if (rs.dir === 'ne' || rs.dir === 'nw' || rs.dir === 'n') {
             newPy = rs.startPixelY + rs.startPixelH - newPh;
           }
         }
@@ -350,11 +383,21 @@ export const Canvas: React.FC = () => {
         newPw = clamped2.w;
         newPh = clamped2.h;
 
-        const gridExpr = pixelToCurrentGrid(newPx, newPy, newPw, newPh);
-        let x = gridExpr.x;
-        let y = gridExpr.y;
-        let w = gridExpr.w;
-        let h = gridExpr.h;
+        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
+        const deltaGridX = (newPx - rs.startPixelX) / gridScale.scaleX;
+        const deltaGridY = (newPy - rs.startPixelY) / gridScale.scaleY;
+        const deltaGridW = (newPw - rs.startPixelW) / gridScale.scaleX;
+        const deltaGridH = (newPh - rs.startPixelH) / gridScale.scaleY;
+
+        const xExpr = applyExpressionDelta(rs.startExprX, deltaGridX);
+        const yExpr = applyExpressionDelta(rs.startExprY, deltaGridY);
+        const wExpr = applyExpressionDelta(rs.startExprW, deltaGridW);
+        const hExpr = applyExpressionDelta(rs.startExprH, deltaGridH);
+
+        let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+        let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+        let w = typeof wExpr === 'number' ? wExpr.toString() : wExpr;
+        let h = typeof hExpr === 'number' ? hExpr.toString() : hExpr;
         if (snapToGrid) {
           x = snapGridValue(x);
           y = snapGridValue(y);
@@ -453,8 +496,14 @@ export const Canvas: React.FC = () => {
           const newPy = coords.y + dy;
           // Clamp to canvas boundaries
           const clamped = clampToCanvas(newPx, newPy, coords.w, coords.h);
-          const gridExpr = pixelToCurrentGrid(clamped.x, clamped.y, coords.w, coords.h);
-          store.moveControl(dialogId, id, gridExpr.x, gridExpr.y);
+          const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
+          const deltaGridX = (clamped.x - coords.x) / gridScale.scaleX;
+          const deltaGridY = (clamped.y - coords.y) / gridScale.scaleY;
+          const xExpr = applyExpressionDelta(ctrl.x, deltaGridX);
+          const yExpr = applyExpressionDelta(ctrl.y, deltaGridY);
+          let gridX = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+          let gridY = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+          store.moveControl(dialogId, id, gridX, gridY);
         }
         return;
       }
@@ -552,6 +601,8 @@ export const Canvas: React.FC = () => {
         startPixelY: coords.y,
         startPixelW: coords.w,
         startPixelH: coords.h,
+        startExprX: ctrl.x,
+        startExprY: ctrl.y,
         offsetX: canvasMouse.x - coords.x,
         offsetY: canvasMouse.y - coords.y,
       };
@@ -584,6 +635,10 @@ export const Canvas: React.FC = () => {
         startPixelY: coords.y,
         startPixelW: coords.w,
         startPixelH: coords.h,
+        startExprX: ctrl.x,
+        startExprY: ctrl.y,
+        startExprW: ctrl.w,
+        startExprH: ctrl.h,
         offsetX: canvasMouse.x - coords.x,
         offsetY: canvasMouse.y - coords.y,
       };

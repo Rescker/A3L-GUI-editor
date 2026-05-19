@@ -289,3 +289,59 @@ export function controlToCanvasCoords(
 export function roundFloat(val: number, decimals = 4): number {
   return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
+
+export function computePixelToGridScale(
+  canvasWidth: number,
+  canvasHeight: number,
+  uiScale: string
+): { scaleX: number; scaleY: number } {
+  const safeZone = computeSafeZone(canvasWidth, canvasHeight, uiScale);
+  const scaleY = canvasHeight / safeZone.h;
+  const scaleX = scaleY * (4 / 3);
+  return { scaleX, scaleY };
+}
+
+export function applyExpressionDelta(expr: string | number, delta: number): string | number {
+  if (typeof expr === 'number') return roundFloat(expr + delta);
+
+  const trimmed = expr.trim();
+
+  // Caso "NUMBER + REST" ou "NUMBER - REST" — ajusta apenas o primeiro número
+  const match = trimmed.match(/^([\d.-]+)\s*(\s*[+-]\s*.+)$/);
+  if (match) {
+    const baseVal = parseFloat(match[1]);
+    const rest = match[2];
+    if (!isNaN(baseVal)) {
+      const newVal = roundFloat(baseVal + delta);
+      return `${newVal}${rest}`;
+    }
+  }
+
+  // Caso "+NUMBER" isolado — ajusta o número com sinal
+  const signMatch = trimmed.match(/^([+-])\s*([\d.]+)\s*$/);
+  if (signMatch) {
+    const sign = signMatch[1];
+    const val = parseFloat(signMatch[2]);
+    if (!isNaN(val)) {
+      const newVal = roundFloat((sign === '-' ? -val : val) + delta);
+      return roundFloat(newVal).toString();
+    }
+  }
+
+  // Fallback: avalia a expressão, aplica delta, retorna número puro
+  const evalResult = tryEvalNumber(trimmed);
+  if (evalResult !== null) {
+    return roundFloat(evalResult + delta).toString();
+  }
+
+  return roundFloat(parseFloat(trimmed) + delta).toString();
+}
+
+function tryEvalNumber(expr: string): number | null {
+  try {
+    const result = Function(`"use strict"; return (${expr.replace(/\s+/g, '')});`)();
+    return typeof result === 'number' && !isNaN(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
