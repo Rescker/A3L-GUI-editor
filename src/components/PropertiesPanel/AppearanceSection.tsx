@@ -18,6 +18,7 @@ export const AppearanceSection: React.FC = () => {
     gridSystem,
     gridVariant,
     previewResolution,
+    previewUIScale,
   } = useEditorStore();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,9 +47,9 @@ export const AppearanceSection: React.FC = () => {
   }, [activeDialogId, ctrl.id, updateControl]);
 
   const applyDimensions = useCallback((w: number, h: number) => {
-    const expr = pixelToGridExpr(0, 0, w, h, gridSystem, gridVariant, previewResolution.w, previewResolution.h);
+    const expr = pixelToGridExpr(0, 0, w, h, gridSystem, gridVariant, previewResolution.w, previewResolution.h, previewUIScale);
     updateControl(activeDialogId, ctrl.id, { w: expr.w, h: expr.h });
-  }, [activeDialogId, ctrl.id, gridSystem, gridVariant, previewResolution, updateControl]);
+  }, [activeDialogId, ctrl.id, gridSystem, gridVariant, previewResolution, previewUIScale, updateControl]);
 
   // Check if current dimensions are power-of-two
   const isPow2 = (n: number): boolean => n > 0 && (n & (n - 1)) === 0;

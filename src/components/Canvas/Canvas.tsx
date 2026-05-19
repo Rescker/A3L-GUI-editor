@@ -65,6 +65,7 @@ export const Canvas: React.FC = () => {
     clearSelection,
     moveControl,
     resizeControl,
+    moveMultipleControls,
     removeControl,
     setCursorGridPos,
     setZoomLevel,
@@ -75,8 +76,12 @@ export const Canvas: React.FC = () => {
   const canvasInnerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const resizeStateRef = useRef<ResizeState | null>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [pendingDrag, setPendingDrag] = useState(false);
+
+  const DRAG_THRESHOLD = 4;
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
 
@@ -135,9 +140,9 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const pixelToCurrentGrid = useCallback(
     (px: number, py: number, pw: number, ph: number) => {
-      return pixelToGridExpr(px, py, pw, ph, gridSystem, gridVariant, canvasW, canvasH);
+      return pixelToGridExpr(px, py, pw, ph, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
     },
-    [gridSystem, gridVariant, canvasW, canvasH]
+    [gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
   );
 
   // ===========================================================================
@@ -214,32 +219,74 @@ export const Canvas: React.FC = () => {
   // Document-level mousemove — shared by drag and resize
   // ===========================================================================
   useEffect(() => {
-    if (!isDragging && !isResizing) return;
+    if (!pendingDrag && !isDragging && !isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!activeDialogId) return;
       const canvasMouse = getCanvasMouse(e);
       if (!canvasMouse) return;
 
+      if (pendingDrag && dragStateRef.current && dragOriginRef.current) {
+        const dx = canvasMouse.x - dragOriginRef.current.x;
+        const dy = canvasMouse.y - dragOriginRef.current.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist >= DRAG_THRESHOLD) {
+          setPendingDrag(false);
+          setIsDragging(true);
+        } else {
+          return;
+        }
+      }
+
       if (isDragging && dragStateRef.current) {
         const ds = dragStateRef.current;
+        const store = useEditorStore.getState();
+        const selectedIds = store.selectedControlIds;
+        const isMultiDrag = selectedIds.length > 1 && selectedIds.includes(ds.controlId);
 
-        let newPx = canvasMouse.x - ds.offsetX;
-        let newPy = canvasMouse.y - ds.offsetY;
+        if (isMultiDrag) {
+          const currentX = canvasMouse.x - ds.offsetX;
+          const currentY = canvasMouse.y - ds.offsetY;
+          const deltaX = currentX - ds.startPixelX;
+          const deltaY = currentY - ds.startPixelY;
 
-        // Clamp to canvas boundaries
-        const clamped = clampToCanvas(newPx, newPy, ds.startPixelW, ds.startPixelH);
-        newPx = clamped.x;
-        newPy = clamped.y;
+          const updates: { id: string; x: number | string; y: number | string }[] = [];
+          for (const id of selectedIds) {
+            const ctrl = getControlById(id);
+            if (!ctrl) continue;
+            const cCoords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+            const newPx = cCoords.x + deltaX;
+            const newPy = cCoords.y + deltaY;
+            const clamped = clampToCanvas(newPx, newPy, cCoords.w, cCoords.h);
+            const gridExpr = pixelToCurrentGrid(clamped.x, clamped.y, cCoords.w, cCoords.h);
+            let x = gridExpr.x;
+            let y = gridExpr.y;
+            if (snapToGrid) {
+              x = snapGridValue(x);
+              y = snapGridValue(y);
+            }
+            updates.push({ id, x, y });
+          }
+          if (updates.length > 0) {
+            moveMultipleControls(activeDialogId, updates);
+          }
+        } else {
+          let newPx = canvasMouse.x - ds.offsetX;
+          let newPy = canvasMouse.y - ds.offsetY;
 
-        const gridExpr = pixelToCurrentGrid(newPx, newPy, ds.startPixelW, ds.startPixelH);
-        let x = gridExpr.x;
-        let y = gridExpr.y;
-        if (snapToGrid) {
-          x = snapGridValue(x);
-          y = snapGridValue(y);
+          const clamped = clampToCanvas(newPx, newPy, ds.startPixelW, ds.startPixelH);
+          newPx = clamped.x;
+          newPy = clamped.y;
+
+          const gridExpr = pixelToCurrentGrid(newPx, newPy, ds.startPixelW, ds.startPixelH);
+          let x = gridExpr.x;
+          let y = gridExpr.y;
+          if (snapToGrid) {
+            x = snapGridValue(x);
+            y = snapGridValue(y);
+          }
+          moveControl(activeDialogId, ds.controlId, x, y);
         }
-        moveControl(activeDialogId, ds.controlId, x, y);
       }
 
       if (isResizing && resizeStateRef.current) {
@@ -320,8 +367,12 @@ export const Canvas: React.FC = () => {
     };
 
     const handleMouseUp = () => {
+      if (pendingDrag) {
+        setPendingDrag(false);
+      }
       dragStateRef.current = null;
       resizeStateRef.current = null;
+      dragOriginRef.current = null;
       setIsDragging(false);
       setIsResizing(false);
       runValidation();
@@ -333,7 +384,7 @@ export const Canvas: React.FC = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, activeDialogId, scale, snapToGrid, moveControl, resizeControl, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH]);
+  }, [pendingDrag, isDragging, isResizing, activeDialogId, scale, snapToGrid, moveControl, resizeControl, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH]);
 
   // ===========================================================================
   // Keyboard: Delete, Escape, Ctrl+C, Ctrl+V, Arrow nudging
@@ -353,6 +404,20 @@ export const Canvas: React.FC = () => {
         for (const id of ids) {
           store.removeControl(dialogId, id);
         }
+        return;
+      }
+
+      // === Ctrl+Z (Undo) ===
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z' && !isInput) {
+        e.preventDefault();
+        useEditorStore.getState().undo?.();
+        return;
+      }
+
+      // === Ctrl+Y or Ctrl+Shift+Z (Redo) ===
+      if (((e.ctrlKey && !e.shiftKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) && !isInput) {
+        e.preventDefault();
+        useEditorStore.getState().redo?.();
         return;
       }
 
@@ -490,7 +555,8 @@ export const Canvas: React.FC = () => {
         offsetX: canvasMouse.x - coords.x,
         offsetY: canvasMouse.y - coords.y,
       };
-      setIsDragging(true);
+      dragOriginRef.current = { x: canvasMouse.x, y: canvasMouse.y };
+      setPendingDrag(true);
     },
     [selectControl, getControlById, getCanvasMouse, gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
   );
@@ -549,7 +615,7 @@ export const Canvas: React.FC = () => {
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}
       onClick={() => containerRef.current?.focus()}
-      style={{ cursor: isDragging ? 'grabbing' : isResizing ? 'crosshair' : 'default' }}
+      style={{ cursor: isDragging ? 'grabbing' : isResizing ? 'crosshair' : pendingDrag ? 'grabbing' : 'default' }}
     >
       <div
         ref={canvasInnerRef}
@@ -570,16 +636,8 @@ export const Canvas: React.FC = () => {
           backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
         }}
       >
-        {/* SafeZone indicator */}
-        <div
-          className="absolute border border-teal-500/30 pointer-events-none"
-          style={{
-            left: safeZone.x * canvasW * scale,
-            top: safeZone.y * canvasH * scale,
-            width: safeZone.w * canvasW * scale,
-            height: safeZone.h * canvasH * scale,
-          }}
-        />
+        {/* SafeZone exterior dimming & boundary */}
+        <SafeZoneOverlay safeZone={safeZone} canvasW={canvasW} canvasH={canvasH} scale={scale} />
 
         {/* Grid overlay */}
         {showGrid && (
@@ -659,4 +717,65 @@ function getVisibleControls(
   }
 
   return [...dialog.controlsBackground, ...dialog.controls, ...dialog.objects];
+}
+
+// =============================================================================
+// SafeZoneOverlay — dims exterior areas and draws boundary
+// =============================================================================
+function SafeZoneOverlay({
+  safeZone,
+  canvasW,
+  canvasH,
+  scale,
+}: {
+  safeZone: { x: number; y: number; w: number; h: number };
+  canvasW: number;
+  canvasH: number;
+  scale: number;
+}) {
+  const hasInset = safeZone.x > 0.001 || safeZone.y > 0.001;
+  if (!hasInset) return null;
+
+  const dimColor = 'rgba(0,0,0,0.4)';
+  const sx = safeZone.x * canvasW * scale;
+  const sy = safeZone.y * canvasH * scale;
+  const sw = safeZone.w * canvasW * scale;
+  const sh = safeZone.h * canvasH * scale;
+  const cw = canvasW * scale;
+  const ch = canvasH * scale;
+
+  return (
+    <>
+      {/* Top strip */}
+      {safeZone.y > 0.001 && (
+        <div className="absolute pointer-events-none z-[1]" style={{ left: 0, top: 0, width: cw, height: sy, backgroundColor: dimColor }} />
+      )}
+      {/* Bottom strip */}
+      {safeZone.y + safeZone.h < 0.999 && (
+        <div className="absolute pointer-events-none z-[1]" style={{ left: 0, top: sy + sh, width: cw, height: ch - sy - sh, backgroundColor: dimColor }} />
+      )}
+      {/* Left strip */}
+      {safeZone.x > 0.001 && (
+        <div className="absolute pointer-events-none z-[1]" style={{ left: 0, top: sy, width: sx, height: sh, backgroundColor: dimColor }} />
+      )}
+      {/* Right strip */}
+      {safeZone.x + safeZone.w < 0.999 && (
+        <div className="absolute pointer-events-none z-[1]" style={{ left: sx + sw, top: sy, width: cw - sx - sw, height: sh, backgroundColor: dimColor }} />
+      )}
+      {/* Safe zone border */}
+      <div
+        className="absolute border-2 border-teal-500/60 pointer-events-none z-[2]"
+        style={{ left: sx, top: sy, width: sw, height: sh }}
+      />
+      {/* Safe zone label */}
+      <div
+        className="absolute pointer-events-none z-[2]"
+        style={{ left: sx + sw / 2, top: sy, transform: 'translate(-50%, -100%)' }}
+      >
+        <span className="px-2 py-0.5 text-[10px] text-teal-400 bg-[#0a0a1a] whitespace-nowrap rounded-t">
+          SAFE ZONE
+        </span>
+      </div>
+    </>
+  );
 }

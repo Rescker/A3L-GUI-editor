@@ -17,6 +17,8 @@ export const Toolbar: React.FC = () => {
     previewUIScale,
     zoomLevel,
     componentLibraryOpen,
+    history,
+    historyIndex,
     setGridSystem,
     setGridVariant,
     setShowGrid,
@@ -28,6 +30,8 @@ export const Toolbar: React.FC = () => {
     setExportModalOpen,
     setComponentLibraryOpen,
     addDialog,
+    undo,
+    redo,
   } = useEditorStore();
 
   return (
@@ -132,6 +136,26 @@ export const Toolbar: React.FC = () => {
         title="Reset zoom"
       >
         Fit
+      </button>
+
+      <div className="w-px h-4 bg-white/10" />
+
+      {/* Undo / Redo */}
+      <button
+        className="px-2 py-1 rounded text-[11px] bg-surface text-gray-400 hover:text-white disabled:opacity-30"
+        onClick={undo}
+        disabled={historyIndex <= 0}
+        title="Undo (Ctrl+Z)"
+      >
+        ↶
+      </button>
+      <button
+        className="px-2 py-1 rounded text-[11px] bg-surface text-gray-400 hover:text-white disabled:opacity-30"
+        onClick={redo}
+        disabled={historyIndex >= history.length - 1}
+        title="Redo (Ctrl+Y)"
+      >
+        ↷
       </button>
 
       <div className="flex-1" />

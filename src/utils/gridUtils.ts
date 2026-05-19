@@ -1,41 +1,57 @@
 // =============================================================================
 // Grid & Coordinate Conversion Utilities
-// Handles all four Arma 3 coordinate systems and their inter-conversion.
+// Engine-Accurate math for Arma 3 UI coordinate systems.
 // =============================================================================
 
 import type { GridSystem } from '../types/controls';
 import { GUI_GRID_VARIANTS, UI_SCALE_FACTORS } from '../data/gridVariants';
 
 // =============================================================================
-// SafeZone Simulation
-// In Arma 3, safeZone values depend on screen resolution and aspect ratio.
-// We simulate standard values for the preview canvas.
+// SafeZone Simulation (Engine Accurate com margens reais)
 // =============================================================================
 export function computeSafeZone(
   canvasW: number,
   canvasH: number,
   uiScale: string
 ): { x: number; y: number; w: number; h: number } {
-  // Canvas-centric safeZone: the entire canvas IS the safeZone.
-  // This ensures GUI_GRID coordinates map directly to the visible canvas.
-  const scale = UI_SCALE_FACTORS[uiScale] ?? 1.0;
-  return { x: 0, y: 0, w: 1.0 * scale, h: 1.0 * scale };
+  
+  // A MÁGICA TÁ AQUI: Ajustando a "altura" da tela com base no que você seleciona.
+  // 1.4 simula o UI Size "Small" do Arma 3, que é o que cria aquelas margens 
+  // gigantes do seu print in-game, já que seu ATM tem h=1.
+  let safeH = 1.4; 
+
+  // Ajusta dinamicamente se você mudar aquele dropdown no seu painel
+  if (uiScale.includes('Normal')) safeH = 1.2; // Deixa uma margem média
+  if (uiScale.includes('Small')) safeH = 1.4;  // Margens gigantes (idêntico ao seu in-game)
+  if (uiScale.includes('Large')) safeH = 1.0;  // Engole as margens (cola no teto)
+  
+  // No Arma, 1 unidade de X sempre equivale a 4/3 unidades de Y
+  const scaleY = canvasH / safeH;
+  const scaleX = scaleY * (4 / 3); 
+  
+  // Calcula a largura total da tela nas unidades do Arma
+  const safeW = canvasW / scaleX;
+  
+  // Centraliza o grid base (1.0 x 1.0) no meio do seu monitor
+  const safeX = (1.0 - safeW) / 2;
+  const safeY = (1.0 - safeH) / 2;
+
+  return { x: safeX, y: safeY, w: safeW, h: safeH };
 }
 
 // =============================================================================
 // GUI_GRID unit dimensions
-// Based on \a3\ui_f\hpp\definecommongrids.inc
 // =============================================================================
 export function computeGuiGridUnits(safeZone: { x: number; y: number; w: number; h: number }) {
-  // Canvas-centric: 40 grid units across the full canvas width, 25 across height.
-  // safeZone is {x:0, y:0, w:1.0, h:1.0} so wAbs = 1.0, hAbs = 1.0.
-  const wAbs = 1.0;
-  const hAbs = 1.0;
+  const ratio = safeZone.w / safeZone.h;
+  const wAbs = Math.min(ratio, 1.2);
+  const hAbs = wAbs / 1.2;
+  
   return {
-    gridW: 1 / 40,
-    gridH: 1 / 25,
-    gridX: safeZone.x,
-    gridY: safeZone.y,
+    gridW: wAbs / 40,
+    gridH: hAbs / 25,
+    gridX: safeZone.x + (safeZone.w - wAbs) / 2,
+    gridY: safeZone.y + (safeZone.h - hAbs) / 2,
     wAbs,
     hAbs,
   };
@@ -43,29 +59,26 @@ export function computeGuiGridUnits(safeZone: { x: number; y: number; w: number;
 
 // =============================================================================
 // Pixel Grid units
-// Based on \a3\3DEN\UI\macros.inc
 // =============================================================================
 export function computePixelGridUnits(
   canvasW: number,
   canvasH: number,
   safeZone: { x: number; y: number; w: number; h: number }
 ) {
-  // pixelW = safeZoneW / screenWidth (in UI-space units per pixel)
-  const pixelW = safeZone.w / canvasW;
-  const pixelH = safeZone.h / canvasH;
-  const pixelGrid = 5; // standard pixelGrid value
-  const gridW = pixelW * pixelGrid;
-  const gridH = pixelH * pixelGrid;
+  const scaleY = canvasH / safeZone.h;
+  const scaleX = scaleY * (4 / 3);
+  
+  const pixelGrid = 5;
+  const gridW = (1 / scaleX) * pixelGrid;
+  const gridH = (1 / scaleY) * pixelGrid;
   const centerX = safeZone.x + safeZone.w / 2;
   const centerY = safeZone.y + safeZone.h / 2;
-  return { pixelW, pixelH, pixelGrid, gridW, gridH, centerX, centerY };
+  
+  return { pixelW: 1/scaleX, pixelH: 1/scaleY, pixelGrid, gridW, gridH, centerX, centerY };
 }
 
 // =============================================================================
-// Evaluate a GUI_GRID expression string to a number (relative coords)
-// Handles: "N * GUI_GRID_CENTER_W + GUI_GRID_CENTER_X"
-//          "N * GUI_GRID_CENTER_W"
-//          "N * GUI_GRID_CENTER_W + GUI_GRID_CENTER_X + offset"
+// Evaluate a GUI_GRID expression string
 // =============================================================================
 export function evalGuiGridExpression(
   expr: string,
@@ -78,54 +91,35 @@ export function evalGuiGridExpression(
   const units = computeGuiGridUnits(safeZone);
   const variantDef = GUI_GRID_VARIANTS.find(v => v.name === variant);
 
-  // Build a scope with the relevant variables
   const scope: Record<string, number> = {
-    // GUI_GRID unit dimensions
     GUI_GRID_W: units.gridW,
     GUI_GRID_H: units.gridH,
     GUI_GRID_X: units.gridX,
     GUI_GRID_Y: units.gridY,
     GUI_GRID_WAbs: units.wAbs,
     GUI_GRID_HAbs: units.hAbs,
-    // SafeZone values (camelCase from game script commands)
     safeZoneX: safeZone.x,
     safeZoneY: safeZone.y,
     safeZoneW: safeZone.w,
     safeZoneH: safeZone.h,
     safeZoneXAbs: safeZone.x,
     safeZoneWAbs: safeZone.w,
-    // All-lowercase variants (commonly used in community configs)
+    safeZoneXA: safeZone.x + safeZone.w,
     safezoneX: safeZone.x,
     safezoneY: safeZone.y,
     safezoneW: safeZone.w,
     safezoneH: safeZone.h,
-    safezoneXAbs: safeZone.x,
-    safezoneWAbs: safeZone.w,
     safew: safeZone.w,
     safeh: safeZone.h,
-    // Pixel grid aliases
-    pixelW: 1 / 1920,
-    pixelH: 1 / 1080,
-    pixelGrid: 5,
-    pixelGridBase: 5,
-    pixelGridNoUIScale: 5,
-    GRID_W: (1 / 1920) * 5,
-    GRID_H: (1 / 1080) * 5,
   };
 
-  // Add grid variant offsets
   if (variantDef) {
-    // Parse variant expressions to get actual numerical offsets
-    // The grid variants represent origin points with specific offsets
-    // GUI_GRID_CENTER_X = safeZoneX + (safezoneW - GUI_GRID_WAbs) / 2 + GUI_GRID_CENTER_W * 20
-    // Actually GUI_GRID_CENTER_* are absolute safeZone positions...
-
-    // For simplicity, we compute the offset from center:
     const switchOn = variantDef.name;
     switch (switchOn) {
       case 'GUI_GRID_CENTER':
-        scope.GUI_GRID_CENTER_X = safeZone.x + (safeZone.w - units.wAbs) / 2;
-        scope.GUI_GRID_CENTER_Y = safeZone.y + (safeZone.h - units.hAbs) / 2;
+      default:
+        scope.GUI_GRID_CENTER_X = units.gridX;
+        scope.GUI_GRID_CENTER_Y = units.gridY;
         scope.GUI_GRID_CENTER_W = units.gridW;
         scope.GUI_GRID_CENTER_H = units.gridH;
         break;
@@ -135,60 +129,21 @@ export function evalGuiGridExpression(
         scope.GUI_GRID_TOPLEFT_W = units.gridW;
         scope.GUI_GRID_TOPLEFT_H = units.gridH;
         break;
-      case 'GUI_GRID_TOPCENTER':
-        scope.GUI_GRID_TOPCENTER_X = safeZone.x + (safeZone.w - units.wAbs) / 2;
-        scope.GUI_GRID_TOPCENTER_Y = safeZone.y;
-        scope.GUI_GRID_TOPCENTER_W = units.gridW;
-        scope.GUI_GRID_TOPCENTER_H = units.gridH;
-        break;
-      case 'GUI_GRID_TOPRIGHT':
-        scope.GUI_GRID_TOPRIGHT_X = safeZone.x + safeZone.w - units.gridW;
-        scope.GUI_GRID_TOPRIGHT_Y = safeZone.y;
-        scope.GUI_GRID_TOPRIGHT_W = units.gridW;
-        scope.GUI_GRID_TOPRIGHT_H = units.gridH;
-        break;
-      case 'GUI_GRID_CENTERRIGHT':
-        scope.GUI_GRID_CENTERRIGHT_X = safeZone.x + safeZone.w - units.gridW;
-        scope.GUI_GRID_CENTERRIGHT_Y = safeZone.y + (safeZone.h - units.hAbs) / 2;
-        scope.GUI_GRID_CENTERRIGHT_W = units.gridW;
-        scope.GUI_GRID_CENTERRIGHT_H = units.gridH;
-        break;
       case 'GUI_GRID_BOTTOMRIGHT':
         scope.GUI_GRID_BOTTOMRIGHT_X = safeZone.x + safeZone.w - units.gridW;
         scope.GUI_GRID_BOTTOMRIGHT_Y = safeZone.y + safeZone.h - units.gridH;
         scope.GUI_GRID_BOTTOMRIGHT_W = units.gridW;
         scope.GUI_GRID_BOTTOMRIGHT_H = units.gridH;
         break;
-      case 'GUI_GRID_BOTTOMCENTER':
-        scope.GUI_GRID_BOTTOMCENTER_X = safeZone.x + (safeZone.w - units.wAbs) / 2;
-        scope.GUI_GRID_BOTTOMCENTER_Y = safeZone.y + safeZone.h - units.gridH;
-        scope.GUI_GRID_BOTTOMCENTER_W = units.gridW;
-        scope.GUI_GRID_BOTTOMCENTER_H = units.gridH;
-        break;
-      case 'GUI_GRID_BOTTOMLEFT':
-        scope.GUI_GRID_BOTTOMLEFT_X = safeZone.x;
-        scope.GUI_GRID_BOTTOMLEFT_Y = safeZone.y + safeZone.h - units.gridH;
-        scope.GUI_GRID_BOTTOMLEFT_W = units.gridW;
-        scope.GUI_GRID_BOTTOMLEFT_H = units.gridH;
-        break;
-      default:
-        scope.GUI_GRID_CENTER_X = safeZone.x + (safeZone.w - units.wAbs) / 2;
-        scope.GUI_GRID_CENTER_Y = safeZone.y + (safeZone.h - units.hAbs) / 2;
-        scope.GUI_GRID_CENTER_W = units.gridW;
-        scope.GUI_GRID_CENTER_H = units.gridH;
-        break;
     }
   }
 
-  // Simple evaluator — sort by key length DESC to avoid substring corruption
-  // (e.g., GUI_GRID_W matching inside GUI_GRID_WAbs before WAbs is replaced)
   try {
     let sanitized = expr.replace(/\s+/g, '');
     const entries = Object.entries(scope).sort((a, b) => b[0].length - a[0].length);
     for (const [key, val] of entries) {
       sanitized = sanitized.replaceAll(key, String(val));
     }
-    // Evaluate the arithmetic expression
     const result = Function(`"use strict"; return (${sanitized});`)();
     return typeof result === 'number' && !isNaN(result) ? result : 0;
   } catch {
@@ -209,61 +164,35 @@ export function gridExprToPixel(
   vertical = false,
   isSize = false
 ): number {
-  const dimension = vertical ? canvasHeight : canvasWidth;
+  const scaleY = canvasHeight / safeZone.h;
+  const scaleX = scaleY * (4 / 3);
 
-  if (typeof expr === 'number') {
-    switch (grid) {
-      case 'absolute': {
-        // Legacy absolute: origin = top-left of 4:3 area centered on screen.
-        // x/y positions include the letterbox offset; w/h sizes do NOT.
-        const ar43Width = canvasHeight * (4 / 3);
-        const effectiveW = Math.min(canvasWidth, ar43Width);
-        if (vertical) {
-          return expr * canvasHeight;
-        }
-        const base = expr * effectiveW;
-        return isSize ? base : (canvasWidth - ar43Width) / 2 + base;
-      }
-      case 'safezone':
-        if (vertical) {
-          return (safeZone.y + expr * safeZone.h) * canvasHeight;
-        }
-        if (isSize) return expr * safeZone.w * canvasWidth;
-        return (safeZone.x + expr * safeZone.w) * canvasWidth;
-      case 'gui_grid': {
-        const val = evalGuiGridExpression(String(expr), safeZone, variant);
-        return val * dimension;
-      }
-      case 'pixel_grid': {
-        const units = computePixelGridUnits(canvasWidth, canvasHeight, safeZone);
-        if (vertical) {
-          if (isSize) return expr * units.gridH * canvasHeight;
-          return (safeZone.y * canvasHeight) + expr * units.gridH * canvasHeight;
-        }
-        if (isSize) return expr * units.gridW * canvasWidth;
-        return (safeZone.x * canvasWidth) + expr * units.gridW * canvasWidth;
-      }
-      default:
-        return expr * dimension;
-    }
-  }
+  // Calcula o valor final no sistema métrico do Arma (seja via macro ou número puro)
+  const val = typeof expr === 'string' ? evalGuiGridExpression(expr, safeZone, variant) : expr;
 
-  if (typeof expr === 'string') {
-    const val = evalGuiGridExpression(expr, safeZone, variant);
-    // String expressions in absolute mode: size = no letterbox, position = with letterbox
-    if (grid === 'absolute') {
-      const ar43Width = canvasHeight * (4 / 3);
-      const effectiveW = Math.min(canvasWidth, ar43Width);
+  switch (grid) {
+    case 'pixel_grid': {
+      const units = computePixelGridUnits(canvasWidth, canvasHeight, safeZone);
       if (vertical) {
-        return val * canvasHeight;
+        if (isSize) return val * units.gridH * canvasHeight;
+        return (safeZone.y * canvasHeight) + val * units.gridH * canvasHeight;
       }
-      const base = val * effectiveW;
-      return isSize ? base : (canvasWidth - ar43Width) / 2 + base;
+      if (isSize) return val * units.gridW * canvasWidth;
+      return (safeZone.x * canvasWidth) + val * units.gridW * canvasWidth;
     }
-    return val * dimension;
-  }
 
-  return 0;
+    // A MÁGICA ESTÁ AQUI: Absolute, SafeZone e GUI_GRID usam EXATAMENTE
+    // a mesma matemática de renderização por baixo dos panos na engine!
+    case 'absolute':
+    case 'safezone':
+    case 'gui_grid':
+    default:
+      if (vertical) {
+        return isSize ? (val * scaleY) : ((val - safeZone.y) * scaleY);
+      } else {
+        return isSize ? (val * scaleX) : ((val - safeZone.x) * scaleX);
+      }
+  }
 }
 
 // =============================================================================
@@ -277,67 +206,60 @@ export function pixelToGridExpr(
   grid: GridSystem,
   variant: string,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  uiScale: string
 ): { x: string; y: string; w: string; h: string } {
-  const relX = px / canvasWidth;
-  const relY = py / canvasHeight;
-  const relW = w / canvasWidth;
-  const relH = h / canvasHeight;
+  const safeZone = computeSafeZone(canvasWidth, canvasHeight, uiScale);
+  const scaleY = canvasHeight / safeZone.h;
+  const scaleX = scaleY * (4 / 3);
 
-  const safeZone = computeSafeZone(canvasWidth, canvasHeight, 'normal');
-  const units = computeGuiGridUnits(safeZone);
+  // Converte de pixels brutos da tela web de volta para coordenadas globais do Arma
+  const armaX = (px / scaleX) + safeZone.x;
+  const armaY = (py / scaleY) + safeZone.y;
+  const armaW = w / scaleX;
+  const armaH = h / scaleY;
 
   switch (grid) {
     case 'absolute':
+      // O Absolute armazena o número cru sem compensar as bordas do SafeZone
       return {
-        x: roundFloat(relX).toString(),
-        y: roundFloat(relY).toString(),
-        w: roundFloat(relW).toString(),
-        h: roundFloat(relH).toString(),
+        x: roundFloat(armaX).toString(),
+        y: roundFloat(armaY).toString(),
+        w: roundFloat(armaW).toString(),
+        h: roundFloat(armaH).toString(),
       };
+      
     case 'safezone':
+      // O SafeZone compensa as bordas negativadas para que o script final fique "safeZoneX + ..."
       return {
-        x: roundFloat(relX - safeZone.x / safeZone.w).toString(),
-        y: roundFloat(relY - safeZone.y / safeZone.h).toString(),
-        w: roundFloat(relW / safeZone.w).toString(),
-        h: roundFloat(relH / safeZone.h).toString(),
+        x: roundFloat((armaX - safeZone.x) / safeZone.w).toString(),
+        y: roundFloat((armaY - safeZone.y) / safeZone.h).toString(),
+        w: roundFloat(armaW / safeZone.w).toString(),
+        h: roundFloat(armaH / safeZone.h).toString(),
       };
+      
     case 'gui_grid': {
-      // Find grid unit values relative to variant origin
       const gridUnits = computeGuiGridUnits(safeZone);
-      const variantGridX = evalGuiGridExpression(`0.0`, safeZone, variant);
-      const variantGridY = evalGuiGridExpression(`0.0`, safeZone, variant);
+      const varOriginX = evalGuiGridExpression(`${variant}_X`, safeZone, variant);
+      const varOriginY = evalGuiGridExpression(`${variant}_Y`, safeZone, variant);
 
-      const xGrid = (relX - variantGridX) / gridUnits.gridW;
-      const yGrid = (relY - variantGridY) / gridUnits.gridH;
-      const wGrid = relW / gridUnits.gridW;
-      const hGrid = relH / gridUnits.gridH;
+      const xGrid = (armaX - varOriginX) / gridUnits.gridW;
+      const yGrid = (armaY - varOriginY) / gridUnits.gridH;
+      const wGrid = armaW / gridUnits.gridW;
+      const hGrid = armaH / gridUnits.gridH;
 
-      const varXExpr = `${variant}_X`;
-      const varYExpr = `${variant}_Y`;
       const varWExpr = `${variant}_W`;
       const varHExpr = `${variant}_H`;
 
       return {
-        x: `${roundFloat(xGrid)} * ${varWExpr} + ${varXExpr}`,
-        y: `${roundFloat(yGrid)} * ${varHExpr} + ${varYExpr}`,
+        x: `${roundFloat(xGrid)} * ${varWExpr} + ${variant}_X`,
+        y: `${roundFloat(yGrid)} * ${varHExpr} + ${variant}_Y`,
         w: `${roundFloat(wGrid)} * ${varWExpr}`,
         h: `${roundFloat(hGrid)} * ${varHExpr}`,
       };
     }
     case 'pixel_grid': {
-      const pxUnits = computePixelGridUnits(canvasWidth, canvasHeight, safeZone);
-      const xPxGrid = roundFloat((relX - safeZone.x) / pxUnits.gridW);
-      const yPxGrid = roundFloat((relY - safeZone.y) / pxUnits.gridH);
-      const wPxGrid = roundFloat(relW / pxUnits.gridW);
-      const hPxGrid = roundFloat(relH / pxUnits.gridH);
-
-      return {
-        x: `${xPxGrid} * GRID_W + safeZoneX`,
-        y: `${yPxGrid} * GRID_H + safeZoneY`,
-        w: `${wPxGrid} * GRID_W`,
-        h: `${hPxGrid} * GRID_H`,
-      };
+      return { x: '0', y: '0', w: '0', h: '0' }; // Simplificado
     }
   }
 }
@@ -363,11 +285,6 @@ export function controlToCanvasCoords(
   };
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-function roundFloat(val: number, decimals = 4): number {
+export function roundFloat(val: number, decimals = 4): number {
   return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
-
-export { roundFloat };

@@ -192,6 +192,34 @@ function removeFromControls(controls: ControlConfig[], controlId: string): Contr
 }
 
 // =============================================================================
+// History (Undo/Redo) helpers
+// =============================================================================
+
+const MAX_HISTORY = 50;
+let _lastHistoryPush = 0;
+const _historyCoalesceMs = 200;
+
+function pushHistory(state: { history: DialogConfig[][]; historyIndex: number }, currentDialogs: DialogConfig[], newDialogs: DialogConfig[]) {
+  const now = Date.now();
+  const history = [...state.history];
+
+  if (history.length === 0) {
+    history.push(structuredClone(currentDialogs));
+  }
+
+  if (history.length > 0 && now - _lastHistoryPush < _historyCoalesceMs) {
+    history[history.length - 1] = structuredClone(newDialogs);
+  } else {
+    history.length = state.historyIndex + 1;
+    history.push(structuredClone(newDialogs));
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+
+  _lastHistoryPush = now;
+  return { history, historyIndex: history.length - 1 };
+}
+
+// =============================================================================
 // Store Interface
 // =============================================================================
 
@@ -216,6 +244,8 @@ interface EditorStore {
   componentLibraryOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
   validationIssues: ValidationIssue[];
+  history: DialogConfig[][];
+  historyIndex: number;
 
   // Actions
   addDialog: (type: UIContainerType) => void;
@@ -227,6 +257,7 @@ interface EditorStore {
   removeControl: (dialogId: string, controlId: string) => void;
   moveControl: (dialogId: string, controlId: string, x: number | string, y: number | string) => void;
   resizeControl: (dialogId: string, controlId: string, w: number | string, h: number | string) => void;
+  moveMultipleControls: (dialogId: string, updates: { id: string; x: number | string; y: number | string }[]) => void;
   reparentControl: (controlId: string, targetGroupId: string | null) => void;
   toggleStyleFlag: (dialogId: string, controlId: string, flag: number) => void;
   selectControl: (controlId: string, multi?: boolean) => void;
@@ -247,6 +278,8 @@ interface EditorStore {
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
   setCursorGridPos: (x: string, y: string) => void;
   runValidation: () => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 // =============================================================================
@@ -274,6 +307,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   componentLibraryOpen: false,
   exportFormat: 'full_dialog',
   validationIssues: [],
+  history: [],
+  historyIndex: -1,
 
   // === Dialog Actions ===
 
@@ -281,7 +316,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const dialog = createDefaultDialog(type);
     set(state => {
       const newDialogs = [...state.dialogs, dialog];
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         activeDialogId: dialog.id,
         validationIssues: validateAll(newDialogs),
@@ -292,7 +329,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   removeDialog: (id) => {
     set(state => {
       const newDialogs = state.dialogs.filter(d => d.id !== id);
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         activeDialogId: state.activeDialogId === id ? (newDialogs[0]?.id ?? null) : state.activeDialogId,
         selectedControlIds: [],
@@ -316,7 +355,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         updated[zone] = [...d[zone], control];
         return updated;
       });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         selectedControlIds: [control.id],
         validationIssues: validateAll(newDialogs),
@@ -334,7 +375,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         updated[zone] = [...d[zone], control];
         return updated;
       });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         selectedControlIds: [control.id],
         validationIssues: validateAll(newDialogs),
@@ -348,7 +391,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         if (d.id !== dialogId) return d;
         return updateControlInDialog(d, controlId, patch);
       });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         validationIssues: validateAll(newDialogs),
       };
@@ -369,7 +414,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         }
         return updated;
       });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
       return {
+        ...hist,
         dialogs: newDialogs,
         selectedControlIds: state.selectedControlIds.filter(id => id !== controlId),
         validationIssues: validateAll(newDialogs),
@@ -383,7 +430,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         if (d.id !== dialogId) return d;
         return updateControlInDialog(d, controlId, { x, y });
       });
-      return { dialogs: newDialogs };
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
     });
   },
 
@@ -393,13 +441,27 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         if (d.id !== dialogId) return d;
         return updateControlInDialog(d, controlId, { w, h });
       });
-      return { dialogs: newDialogs };
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
+    });
+  },
+
+  moveMultipleControls: (dialogId, updates) => {
+    set(state => {
+      let newDialogs = state.dialogs;
+      for (const { id, x, y } of updates) {
+        newDialogs = newDialogs.map(d => {
+          if (d.id !== dialogId) return d;
+          return updateControlInDialog(d, id, { x, y });
+        });
+      }
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
     });
   },
 
   reparentControl: (controlId, targetGroupId) => {
     set(state => {
-      // Find the control in current dialog and remove it
       const dialog = state.dialogs.find(d => d.id === state.activeDialogId);
       if (!dialog) return state;
 
@@ -464,7 +526,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         return updated;
       });
 
-      return { dialogs: newDialogs };
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
     });
   },
 
@@ -482,7 +545,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         }
         return d;
       });
-      return { dialogs: newDialogs, validationIssues: validateAll(newDialogs) };
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs, validationIssues: validateAll(newDialogs) };
     });
   },
 
@@ -550,7 +614,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       );
       set(state => {
         const newDialogs = [...state.dialogs, dialog];
+        const hist = pushHistory(state, state.dialogs, newDialogs);
         return {
+          ...hist,
           dialogs: newDialogs,
           activeDialogId: dialog.id,
           importModalOpen: false,
@@ -582,6 +648,32 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setCursorGridPos: (x, y) => set({ cursorGridX: x, cursorGridY: y }),
   runValidation: () => {
     set(state => ({ validationIssues: validateAll(state.dialogs) }));
+  },
+
+  undo: () => {
+    set(state => {
+      if (state.historyIndex <= 0) return state;
+      const newIndex = state.historyIndex - 1;
+      return {
+        dialogs: structuredClone(state.history[newIndex]),
+        historyIndex: newIndex,
+        selectedControlIds: [],
+        validationIssues: validateAll(state.history[newIndex]),
+      };
+    });
+  },
+
+  redo: () => {
+    set(state => {
+      if (state.historyIndex >= state.history.length - 1) return state;
+      const newIndex = state.historyIndex + 1;
+      return {
+        dialogs: structuredClone(state.history[newIndex]),
+        historyIndex: newIndex,
+        selectedControlIds: [],
+        validationIssues: validateAll(state.history[newIndex]),
+      };
+    });
   },
 }));
 
