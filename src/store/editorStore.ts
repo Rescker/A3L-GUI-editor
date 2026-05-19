@@ -15,6 +15,7 @@ import type {
   ValidationIssue,
 } from '../types/controls';
 import { CONTROL_TYPES } from '../data/controlDefaults';
+import { COMPONENT_PRESETS, getPresetById } from '../data/componentLibrary';
 import { validateAll } from '../utils/validation';
 import { generateDialogConfig } from '../utils/configGenerator';
 import { importConfig } from '../utils/configParser';
@@ -51,6 +52,42 @@ function createDefaultControl(type: ControlType): ControlConfig {
     parentClass: info?.defaultParent ?? 'RscText',
     eventHandlers: [],
   };
+}
+
+function createControlFromPreset(presetId: string): ControlConfig | null {
+  const preset = getPresetById(presetId);
+  if (!preset) return null;
+  const info = CONTROL_TYPES.find(ct => ct.type === preset.controlType);
+  const base: ControlConfig = {
+    id: uid(),
+    className: `${preset.label}_${1600 + idCounter}`,
+    idc: 1600 + idCounter,
+    type: preset.controlType,
+    style: 0,
+    x: 0,
+    y: 0,
+    w: info?.defaultSize.w ?? 10,
+    h: info?.defaultSize.h ?? 2,
+    sizeEx: 4,
+    font: 'RobotoCondensed',
+    colorText: [1, 1, 1, 1],
+    colorBackground: [0, 0, 0, 0],
+    text: preset.label,
+    shadow: 0,
+    tooltip: '',
+    moving: false,
+    parentClass: preset.parentClass,
+    eventHandlers: [],
+  };
+  // Merge preset defaults, then override identity fields
+  const merged = { ...base, ...preset.defaultProperties };
+  merged.id = uid();
+  merged.className = `${preset.label}_${1600 + idCounter}`;
+  merged.idc = 1600 + idCounter;
+  merged.type = preset.controlType;
+  merged.parentClass = preset.parentClass;
+  merged.eventHandlers = [];
+  return merged;
 }
 
 function createDefaultDialog(type: UIContainerType): DialogConfig {
@@ -176,6 +213,7 @@ interface EditorStore {
   importModalOpen: boolean;
   exportModalOpen: boolean;
   uiehPickerOpen: boolean;
+  componentLibraryOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
   validationIssues: ValidationIssue[];
 
@@ -184,6 +222,7 @@ interface EditorStore {
   removeDialog: (id: string) => void;
   setActiveDialog: (id: string) => void;
   addControl: (dialogId: string, type: ControlType, zone: ControlZone) => void;
+  addControlFromPreset: (dialogId: string, presetId: string, zone: ControlZone) => void;
   updateControl: (dialogId: string, controlId: string, patch: Partial<ControlConfig>) => void;
   removeControl: (dialogId: string, controlId: string) => void;
   moveControl: (dialogId: string, controlId: string, x: number | string, y: number | string) => void;
@@ -202,6 +241,7 @@ interface EditorStore {
   setImportModalOpen: (open: boolean) => void;
   setExportModalOpen: (open: boolean) => void;
   setUiehPickerOpen: (open: boolean) => void;
+  setComponentLibraryOpen: (open: boolean) => void;
   setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
   importData: (raw: string) => void;
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
@@ -231,6 +271,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   importModalOpen: false,
   exportModalOpen: false,
   uiehPickerOpen: false,
+  componentLibraryOpen: false,
   exportFormat: 'full_dialog',
   validationIssues: [],
 
@@ -269,6 +310,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   addControl: (dialogId, type, zone) => {
     set(state => {
       const control = createDefaultControl(type);
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        const updated = { ...d };
+        updated[zone] = [...d[zone], control];
+        return updated;
+      });
+      return {
+        dialogs: newDialogs,
+        selectedControlIds: [control.id],
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  addControlFromPreset: (dialogId, presetId, zone) => {
+    set(state => {
+      const control = createControlFromPreset(presetId);
+      if (!control) return state;
       const newDialogs = state.dialogs.map(d => {
         if (d.id !== dialogId) return d;
         const updated = { ...d };
@@ -457,6 +516,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setImportModalOpen: (open) => set({ importModalOpen: open }),
   setExportModalOpen: (open) => set({ exportModalOpen: open }),
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
+  setComponentLibraryOpen: (open) => set({ componentLibraryOpen: open }),
   setExportFormat: (format) => set({ exportFormat: format }),
 
   // === Import/Export ===

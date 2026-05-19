@@ -1,10 +1,13 @@
 // =============================================================================
 // SelectionOverlay — Renders selection handles on selected controls
+// Handles fire onHandleMouseDown when a resize corner is grabbed.
 // =============================================================================
 
 import React from 'react';
 import type { ControlConfig, GridSystem } from '../../types/controls';
 import { controlToCanvasCoords } from '../../utils/gridUtils';
+
+type ResizeDir = 'nw' | 'ne' | 'sw' | 'se';
 
 interface Props {
   controls: ControlConfig[];
@@ -16,7 +19,15 @@ interface Props {
   scale: number;
   safeZone: { x: number; y: number; w: number; h: number };
   uiScale: string;
+  onHandleMouseDown: (controlId: string, dir: ResizeDir, e: React.MouseEvent) => void;
 }
+
+const HANDLES: { dir: ResizeDir; cursor: string }[] = [
+  { dir: 'nw', cursor: 'nwse-resize' },
+  { dir: 'ne', cursor: 'nesw-resize' },
+  { dir: 'sw', cursor: 'nesw-resize' },
+  { dir: 'se', cursor: 'nwse-resize' },
+];
 
 export const SelectionOverlay: React.FC<Props> = ({
   controls,
@@ -28,6 +39,7 @@ export const SelectionOverlay: React.FC<Props> = ({
   scale,
   safeZone,
   uiScale,
+  onHandleMouseDown,
 }) => {
   const selectedControls = controls.filter(c => selectedIds.includes(c.id));
 
@@ -42,7 +54,7 @@ export const SelectionOverlay: React.FC<Props> = ({
         const handleSize = 6;
 
         return (
-          <div key={`sel-${ctrl.id}`} className="pointer-events-none">
+          <div key={`sel-${ctrl.id}`}>
             {/* Selection border */}
             <div
               className="absolute pointer-events-none"
@@ -57,28 +69,39 @@ export const SelectionOverlay: React.FC<Props> = ({
             />
 
             {/* Corner handles */}
-            {[
-              { cursor: 'nw-resize', left: x - handleSize, top: y - handleSize },
-              { cursor: 'ne-resize', left: x + w, top: y - handleSize },
-              { cursor: 'sw-resize', left: x - handleSize, top: y + h },
-              { cursor: 'se-resize', left: x + w, top: y + h },
-            ].map((handle, i) => (
-              <div
-                key={i}
-                data-handle="resize"
-                className="absolute z-10 pointer-events-auto"
-                style={{
-                  left: handle.left,
-                  top: handle.top,
-                  width: handleSize * 2,
-                  height: handleSize * 2,
-                  backgroundColor: '#e94560',
-                  border: '1px solid white',
-                  borderRadius: 1,
-                  cursor: handle.cursor,
-                }}
-              />
-            ))}
+            {HANDLES.map((handle, i) => {
+              const hx =
+                handle.dir === 'nw' || handle.dir === 'sw'
+                  ? x - handleSize
+                  : x + w - handleSize;
+              const hy =
+                handle.dir === 'nw' || handle.dir === 'ne'
+                  ? y - handleSize
+                  : y + h - handleSize;
+
+              return (
+                <div
+                  key={i}
+                  data-handle="resize"
+                  className="absolute z-20"
+                  style={{
+                    left: hx,
+                    top: hy,
+                    width: handleSize * 2,
+                    height: handleSize * 2,
+                    backgroundColor: '#e94560',
+                    border: '1px solid white',
+                    borderRadius: 1,
+                    cursor: handle.cursor,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onHandleMouseDown(ctrl.id, handle.dir, e);
+                  }}
+                />
+              );
+            })}
 
             {/* Label */}
             <div

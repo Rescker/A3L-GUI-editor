@@ -1,9 +1,9 @@
 // =============================================================================
-// ControlRenderer — Renders a single control on the canvas
-// Respects control type for visual representation.
+// ControlRenderer — Pure presentational component
+// Renders a single control on the canvas. No drag/resize state.
 // =============================================================================
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback } from 'react';
 import type { ControlConfig, GridSystem } from '../../types/controls';
 import { controlToCanvasCoords } from '../../utils/gridUtils';
 import { hasStyleFlag } from '../../utils/styleUtils';
@@ -19,9 +19,7 @@ interface Props {
   scale: number;
   safeZone: { x: number; y: number; w: number; h: number };
   uiScale: string;
-  onSelect: (multi: boolean) => void;
-  onMove: (x: number, y: number) => void;
-  onResize: (w: number, h: number) => void;
+  onMouseDownCapture: (e: React.MouseEvent) => void;
 }
 
 export const ControlRenderer: React.FC<Props> = ({
@@ -34,14 +32,8 @@ export const ControlRenderer: React.FC<Props> = ({
   scale,
   safeZone,
   uiScale,
-  onSelect,
-  onMove,
-  onResize,
+  onMouseDownCapture,
 }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
   const coords = controlToCanvasCoords(control, gridSystem, gridVariant, canvasW, canvasH, uiScale);
 
   const style: React.CSSProperties = {
@@ -52,32 +44,16 @@ export const ControlRenderer: React.FC<Props> = ({
     height: coords.h * scale,
     border: isSelected ? '2px solid #e94560' : '1px solid rgba(255,255,255,0.2)',
     boxSizing: 'border-box',
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: 'grab',
     userSelect: 'none',
-    transition: isDragging ? 'none' : 'border-color 0.15s',
+    transition: 'border-color 0.15s',
     overflow: 'hidden',
   };
 
   // Text color
   const textColor = `rgba(${control.colorText.map(v => Math.round(v * 255)).join(',')})`;
   const bgColor = `rgba(${control.colorBackground.map(v => Math.round(v * 255)).join(',')})`;
-  const fontSize = control.sizeEx * scale * 3;
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSelect(e.ctrlKey || e.metaKey);
-
-    if (e.target === ref.current || (e.target as HTMLElement).closest('[data-handle]') === null) {
-      setIsDragging(true);
-      const rect = ref.current?.getBoundingClientRect();
-      if (rect) {
-        dragOffset.current = {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        };
-      }
-    }
-  }, [onSelect]);
+  const fontSize = (typeof control.sizeEx === 'number' ? control.sizeEx : 4) * scale * 3;
 
   // Configure rendering based on control type
   const renderContent = () => {
@@ -85,10 +61,21 @@ export const ControlRenderer: React.FC<Props> = ({
     const text = control.text || '';
     const isPicture = hasStyleFlag(control.style, 0x30);
     const isFrame = hasStyleFlag(control.style, 0x40);
-    const isTitleBar = hasStyleFlag(control.style, 0x20);
 
     // CT_STATIC with ST_PICTURE
     if (ft === 0 && isPicture) {
+      if (control.imageDataUrl) {
+        return (
+          <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
+            <img
+              src={control.imageDataUrl}
+              alt={text || 'Picture'}
+              className="max-w-full max-h-full pointer-events-none"
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
+        );
+      }
       return (
         <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: textColor }}>
           {text ? `[IMG: ${text}]` : '[Picture]'}
@@ -117,7 +104,7 @@ export const ControlRenderer: React.FC<Props> = ({
       );
     }
 
-    // CT_BUTTON
+    // CT_BUTTON / CT_SHORTCUTBUTTON / CT_XBUTTON
     if (ft === 1 || ft === 16 || ft === 41) {
       return (
         <div
@@ -266,9 +253,9 @@ export const ControlRenderer: React.FC<Props> = ({
 
   return (
     <div
-      ref={ref}
+      ref={undefined}
       style={style}
-      onMouseDown={handleMouseDown}
+      onMouseDown={onMouseDownCapture}
       className="hover:border-accent-cyan/50"
       data-control-id={control.id}
       data-control-type={control.type}

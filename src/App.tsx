@@ -8,6 +8,7 @@ import { Canvas } from './components/Canvas/Canvas';
 import { HierarchyPanel } from './components/HierarchyPanel/HierarchyPanel';
 import { PropertiesPanel } from './components/PropertiesPanel/PropertiesPanel';
 import { ImportExportModal } from './components/ImportExportModal/ImportExportModal';
+import { ComponentLibrary } from './components/ComponentLibrary/ComponentLibrary';
 import { useEditorStore } from './store/editorStore';
 
 const App: React.FC = () => {
@@ -25,6 +26,9 @@ const App: React.FC = () => {
 
       {/* Main content: three-panel layout */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Left: Component Library (conditional) */}
+        <ComponentLibrary />
+
         {/* Left: Hierarchy */}
         <HierarchyPanel />
 

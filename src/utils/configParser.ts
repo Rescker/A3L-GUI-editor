@@ -3,7 +3,7 @@
 // Handles: Editor format ($[...]), class format, preprocessor defines.
 // =============================================================================
 
-import type { ControlConfig, DialogConfig, EventHandlerConfig, UIContainerType } from '../types/controls';
+import type { ControlConfig, DialogConfig, EventHandlerConfig, UIContainerType, SoundEntry, ScrollBarConfig, RectPos, StructuredAttributes, ImageAttributes, ColorArray } from '../types/controls';
 
 // =============================================================================
 // Editor Format Parser: $[version, [gridDef], [control1], [control2], ...]
@@ -398,7 +398,7 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       y: parseCoordValue(extractProperty(body, 'y') ?? '0'),
       w: parseCoordValue(extractProperty(body, 'w') ?? '10'),
       h: parseCoordValue(extractProperty(body, 'h') ?? '2'),
-      sizeEx: parseFloat(extractProperty(body, 'sizeEx') ?? '4'),
+      sizeEx: parseCoordValue(extractProperty(body, 'sizeEx') ?? '4'),
       font: extractProperty(body, 'font') ?? 'RobotoCondensed',
       colorText: parseColorArray(extractProperty(body, 'colorText')) ?? [1, 1, 1, 1],
       colorBackground: parseColorArray(extractProperty(body, 'colorBackground')) ?? [0, 0, 0, 0],
@@ -423,6 +423,180 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       fade: parseFloat(extractProperty(body, 'fade') ?? '0') || undefined,
       access: extractProperty(body, 'access') ? (parseInt(extractProperty(body, 'access')!) as 0 | 1 | 2 | 3) : undefined,
       onLoad: extractProperty(body, 'onLoad') ?? undefined,
+      // === New properties ===
+      default: parseOptionalFloat(extractProperty(body, 'default')),
+      blinkingPeriod: parseOptionalFloat(extractProperty(body, 'blinkingPeriod')),
+      // Hover/Focused/Pressed colors
+      colorHover: parseColorArray(extractProperty(body, 'colorHover')),
+      colorFocused: parseColorOrSqf(extractProperty(body, 'colorFocused')),
+      colorPressed: parseColorArray(extractProperty(body, 'colorPressed')),
+      colorBackgroundHover: parseColorArray(extractProperty(body, 'colorBackgroundHover')),
+      colorBackgroundFocused: parseColorOrSqf(extractProperty(body, 'colorBackgroundFocused')),
+      colorBackgroundPressed: parseColorArray(extractProperty(body, 'colorBackgroundPressed')),
+      colorBackgroundDisabled: parseColorArray(extractProperty(body, 'colorBackgroundDisabled')),
+      colorShadow: parseColorArray(extractProperty(body, 'colorShadow')),
+      colorBorder: parseColorArray(extractProperty(body, 'colorBorder')),
+      borderSize: parseOptionalFloat(extractProperty(body, 'borderSize')),
+      colorActive: parseColorArray(extractProperty(body, 'colorActive')),
+      color2: parseColorArray(extractProperty(body, 'color2')),
+      colorBackground2: parseColorArray(extractProperty(body, 'colorBackground2')),
+      // Sounds
+      soundEnter: parseSound(extractProperty(body, 'soundEnter')),
+      soundPush: parseSound(extractProperty(body, 'soundPush')),
+      soundClick: parseSound(extractProperty(body, 'soundClick')),
+      soundEscape: parseSound(extractProperty(body, 'soundEscape')),
+      soundSelect: parseSound(extractProperty(body, 'soundSelect')),
+      soundExpand: parseSound(extractProperty(body, 'soundExpand')),
+      soundCollapse: parseSound(extractProperty(body, 'soundCollapse')),
+      // Button
+      offsetX: parseOptionalFloat(extractProperty(body, 'offsetX')),
+      offsetY: parseOptionalFloat(extractProperty(body, 'offsetY')),
+      offsetPressedX: parseOptionalFloat(extractProperty(body, 'offsetPressedX')),
+      offsetPressedY: parseOptionalFloat(extractProperty(body, 'offsetPressedY')),
+      // ShortcutButton
+      animTextureNormal: extractPropertyStr(body, 'animTextureNormal'),
+      animTextureDisabled: extractPropertyStr(body, 'animTextureDisabled'),
+      animTextureOver: extractPropertyStr(body, 'animTextureOver'),
+      animTextureFocused: extractPropertyStr(body, 'animTextureFocused'),
+      animTexturePressed: extractPropertyStr(body, 'animTexturePressed'),
+      animTextureDefault: extractPropertyStr(body, 'animTextureDefault'),
+      period: parseOptionalFloat(extractProperty(body, 'period')),
+      periodFocus: parseOptionalFloat(extractProperty(body, 'periodFocus')),
+      periodOver: parseOptionalFloat(extractProperty(body, 'periodOver')),
+      action: extractPropertyStr(body, 'action'),
+      textureNoShortcut: extractPropertyStr(body, 'textureNoShortcut'),
+      hitZone: parseSubClassRect(parseSubClass(body, 'hitZone')),
+      shortcutPos: parseSubClassRect(parseSubClass(body, 'shortcutPos')),
+      textPos: parseSubClassRect(parseSubClass(body, 'textPos')),
+      attributes: parseSubClassAttributes(parseSubClass(body, 'attributes')),
+      attributesImage: parseSubClassImageAttributes(parseSubClass(body, 'attributesImage')),
+      // Scrollbar sub-classes
+      vScrollBar: parseScrollBarSubClass(parseSubClass(body, 'VScrollBar') || parseSubClass(body, 'VScrollbar') || parseSubClass(body, 'ListScrollBar')),
+      hScrollBar: parseScrollBarSubClass(parseSubClass(body, 'HScrollBar') || parseSubClass(body, 'HScrollbar')),
+      // Scrollbar standalone
+      scrollSpeed: parseOptionalFloat(extractProperty(body, 'scrollSpeed')),
+      autoScrollEnabled: parseOptionalInt(extractProperty(body, 'autoScrollEnabled')),
+      // List controls
+      colorSelect2: parseColorArray(extractProperty(body, 'colorSelect2')),
+      colorSelectBackground: parseColorArray(extractProperty(body, 'colorSelectBackground')),
+      colorSelectBackground2: parseColorArray(extractProperty(body, 'colorSelectBackground2')),
+      colorScrollbar: parseColorArray(extractProperty(body, 'colorScrollbar')),
+      colorPicture: parseColorArray(extractProperty(body, 'colorPicture')),
+      colorPictureSelected: parseColorArray(extractProperty(body, 'colorPictureSelected')),
+      colorPictureDisabled: parseColorArray(extractProperty(body, 'colorPictureDisabled')),
+      wholeHeight: parseOptionalFloat(extractProperty(body, 'wholeHeight')),
+      rowHeight: parseOptionalFloat(extractProperty(body, 'rowHeight')),
+      maxHistoryDelay: parseOptionalFloat(extractProperty(body, 'maxHistoryDelay')),
+      autoScrollSpeed: parseOptionalFloat(extractProperty(body, 'autoScrollSpeed')),
+      autoScrollDelay: parseOptionalFloat(extractProperty(body, 'autoScrollDelay')),
+      autoScrollRewind: parseOptionalFloat(extractProperty(body, 'autoScrollRewind')),
+      // Textures
+      arrowEmpty: extractPropertyStr(body, 'arrowEmpty'),
+      arrowFull: extractPropertyStr(body, 'arrowFull'),
+      border: extractPropertyStr(body, 'border'),
+      thumb: extractPropertyStr(body, 'thumb'),
+      texture: extractPropertyStr(body, 'texture'),
+      // Progress
+      colorFrame: parseColorArray(extractProperty(body, 'colorFrame')),
+      colorBar: parseColorOrSqf(extractProperty(body, 'colorBar')),
+      // Edit
+      autocomplete: extractProperty(body, 'autocomplete') === 'true' ? true : undefined,
+      colorSelection: parseColorOrSqf(extractProperty(body, 'colorSelection')),
+      canModify: parseOptionalInt(extractProperty(body, 'canModify')),
+      // Tree
+      expandedTexture: extractPropertyStr(body, 'expandedTexture'),
+      hiddenTexture: extractPropertyStr(body, 'hiddenTexture'),
+      // StructuredText
+      size: parseCoordValue(extractProperty(body, 'size') ?? undefined),
+      structuredAttributes: parseSubClassAttributes(parseSubClass(body, 'attributes')),
+      // ActiveText
+      // (colorActive already parsed above)
+      // HTML
+      colorBold: parseColorArray(extractProperty(body, 'colorBold')),
+      colorLink: parseColorArray(extractProperty(body, 'colorLink')),
+      colorLinkActive: parseColorArray(extractProperty(body, 'colorLinkActive')),
+      prevPage: extractPropertyStr(body, 'prevPage'),
+      nextPage: extractPropertyStr(body, 'nextPage'),
+      // HitZones
+      xCount: parseOptionalInt(extractProperty(body, 'xCount')),
+      yCount: parseOptionalInt(extractProperty(body, 'yCount')),
+      xSpace: parseOptionalFloat(extractProperty(body, 'xSpace')),
+      ySpace: parseOptionalFloat(extractProperty(body, 'ySpace')),
+      // Checkboxes (type 7)
+      columns: parseOptionalInt(extractProperty(body, 'columns')),
+      rows: parseOptionalInt(extractProperty(body, 'rows')),
+      strings: parseStringArray(extractProperty(body, 'strings')),
+      checkedStrings: parseStringArray(extractProperty(body, 'checked_strings')),
+      colorTextSelect: parseColorArray(extractProperty(body, 'colorTextSelect')),
+      colorSelectedBg: parseColorOrSqf(extractProperty(body, 'colorSelectedBg')),
+      colorSelect: parseColorArray(extractProperty(body, 'colorSelect')),
+      colorTextDisable: parseColorArray(extractProperty(body, 'colorTextDisable')),
+      colorDisable: parseColorArray(extractProperty(body, 'colorDisable')),
+      // Checkbox textures (type 77)
+      textureChecked: extractPropertyStr(body, 'textureChecked'),
+      textureUnchecked: extractPropertyStr(body, 'textureUnchecked'),
+      textureFocusedChecked: extractPropertyStr(body, 'textureFocusedChecked'),
+      textureFocusedUnchecked: extractPropertyStr(body, 'textureFocusedUnchecked'),
+      textureHoverChecked: extractPropertyStr(body, 'textureHoverChecked'),
+      textureHoverUnchecked: extractPropertyStr(body, 'textureHoverUnchecked'),
+      texturePressedChecked: extractPropertyStr(body, 'texturePressedChecked'),
+      texturePressedUnchecked: extractPropertyStr(body, 'texturePressedUnchecked'),
+      textureDisabledChecked: extractPropertyStr(body, 'textureDisabledChecked'),
+      textureDisabledUnchecked: extractPropertyStr(body, 'textureDisabledUnchecked'),
+      // MapControl
+      colorOutside: parseColorArray(extractProperty(body, 'colorOutside')),
+      colorSea: parseColorArray(extractProperty(body, 'colorSea')),
+      colorForest: parseColorArray(extractProperty(body, 'colorForest')),
+      colorRocks: parseColorArray(extractProperty(body, 'colorRocks')),
+      colorCountlines: parseColorArray(extractProperty(body, 'colorCountlines')),
+      colorMainCountlines: parseColorArray(extractProperty(body, 'colorMainCountlines')),
+      colorCountlinesWater: parseColorArray(extractProperty(body, 'colorCountlinesWater')),
+      colorMainCountlinesWater: parseColorArray(extractProperty(body, 'colorMainCountlinesWater')),
+      colorForestBorder: parseColorArray(extractProperty(body, 'colorForestBorder')),
+      colorRocksBorder: parseColorArray(extractProperty(body, 'colorRocksBorder')),
+      colorPowerLines: parseColorArray(extractProperty(body, 'colorPowerLines')),
+      colorRailWay: parseColorArray(extractProperty(body, 'colorRailWay')),
+      colorNames: parseColorArray(extractProperty(body, 'colorNames')),
+      colorInactive: parseColorArray(extractProperty(body, 'colorInactive')),
+      colorLevels: parseColorArray(extractProperty(body, 'colorLevels')),
+      colorTracks: parseColorArray(extractProperty(body, 'colorTracks')),
+      colorRoads: parseColorArray(extractProperty(body, 'colorRoads')),
+      colorMainRoads: parseColorArray(extractProperty(body, 'colorMainRoads')),
+      colorTracksFill: parseColorArray(extractProperty(body, 'colorTracksFill')),
+      colorRoadsFill: parseColorArray(extractProperty(body, 'colorRoadsFill')),
+      colorMainRoadsFill: parseColorArray(extractProperty(body, 'colorMainRoadsFill')),
+      colorGrid: parseColorArray(extractProperty(body, 'colorGrid')),
+      colorGridMap: parseColorArray(extractProperty(body, 'colorGridMap')),
+      scaleMin: parseOptionalFloat(extractProperty(body, 'scaleMin')),
+      scaleMax: parseOptionalFloat(extractProperty(body, 'scaleMax')),
+      scaleDefault: parseOptionalFloat(extractProperty(body, 'scaleDefault')),
+      maxSatelliteAlpha: parseOptionalFloat(extractProperty(body, 'maxSatelliteAlpha')),
+      alphaFadeStartScale: parseOptionalFloat(extractProperty(body, 'alphaFadeStartScale')),
+      alphaFadeEndScale: parseOptionalFloat(extractProperty(body, 'alphaFadeEndScale')),
+      fontLabel: extractPropertyStr(body, 'fontLabel'),
+      sizeExLabel: parseCoordValue(extractProperty(body, 'sizeExLabel') ?? undefined),
+      fontGrid: extractPropertyStr(body, 'fontGrid'),
+      sizeExGrid: parseOptionalFloat(extractProperty(body, 'sizeExGrid')),
+      fontUnits: extractPropertyStr(body, 'fontUnits'),
+      sizeExUnits: parseCoordValue(extractProperty(body, 'sizeExUnits') ?? undefined),
+      fontNames: extractPropertyStr(body, 'fontNames'),
+      sizeExNames: parseCoordValue(extractProperty(body, 'sizeExNames') ?? undefined),
+      fontInfo: extractPropertyStr(body, 'fontInfo'),
+      sizeExInfo: parseCoordValue(extractProperty(body, 'sizeExInfo') ?? undefined),
+      fontLevel: extractPropertyStr(body, 'fontLevel'),
+      sizeExLevel: parseOptionalFloat(extractProperty(body, 'sizeExLevel')),
+      moveOnEdges: parseOptionalInt(extractProperty(body, 'moveOnEdges')),
+      widthRailWay: parseOptionalFloat(extractProperty(body, 'widthRailWay')),
+      ptsPerSquareSea: parseOptionalInt(extractProperty(body, 'ptsPerSquareSea')),
+      ptsPerSquareTxt: parseOptionalInt(extractProperty(body, 'ptsPerSquareTxt')),
+      ptsPerSquareCLn: parseOptionalInt(extractProperty(body, 'ptsPerSquareCLn')),
+      ptsPerSquareExp: parseOptionalInt(extractProperty(body, 'ptsPerSquareExp')),
+      ptsPerSquareCost: parseOptionalInt(extractProperty(body, 'ptsPerSquareCost')),
+      ptsPerSquareFor: parseOptionalInt(extractProperty(body, 'ptsPerSquareFor')),
+      ptsPerSquareForEdge: parseOptionalInt(extractProperty(body, 'ptsPerSquareForEdge')),
+      ptsPerSquareRoad: parseOptionalInt(extractProperty(body, 'ptsPerSquareRoad')),
+      ptsPerSquareObj: parseOptionalInt(extractProperty(body, 'ptsPerSquareObj')),
+      showCountourInterval: parseOptionalInt(extractProperty(body, 'showCountourInterval')),
     };
   } catch {
     return null;
@@ -475,6 +649,147 @@ function splitArrayValues(raw: string): string[] {
   }
   if (current.trim()) result.push(current.trim());
   return result;
+}
+
+// =============================================================================
+// New parser helpers for type-specific properties
+// =============================================================================
+
+function parseOptionalFloat(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const n = parseFloat(raw);
+  return isNaN(n) ? undefined : n;
+}
+
+function parseOptionalInt(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  return isNaN(n) ? undefined : n;
+}
+
+function extractPropertyStr(body: string, propName: string): string | undefined {
+  const val = extractProperty(body, propName);
+  return val || undefined;
+}
+
+function parseSound(raw: string | null): SoundEntry | undefined {
+  if (!raw) return undefined;
+  // Format: {"file", volume, pitch}
+  const match = raw.match(/\{\s*"([^"]+)"\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\}/);
+  if (match) {
+    return [match[1], parseFloat(match[2]), parseFloat(match[3])];
+  }
+  return undefined;
+}
+
+// Parse a color array that may have SQF expressions
+function parseColorOrSqf(raw: string | null): ColorArray | undefined {
+  if (!raw) return undefined;
+  const parts = splitArrayValues(raw);
+  if (parts.length >= 4) {
+    const elements = parts.map(s => {
+      const trimmed = s.trim();
+      if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+        // Return the SQF expression as a string (keep it quoted context-aware)
+        const inner = trimmed.slice(1, -1);
+        const num = parseFloat(inner);
+        return isNaN(num) ? inner : num;
+      }
+      const n = parseFloat(trimmed);
+      return isNaN(n) ? 0 : n;
+    });
+    return [elements[0], elements[1], elements[2], elements[3]];
+  }
+  return undefined;
+}
+
+// Extract nested sub-class body (brace counting)
+function parseSubClass(body: string, name: string): string | null {
+  const regex = new RegExp(`class\\s+${escapeRegex(name)}\\s*(?::\\s*\\w+)?\\s*\\{`, 'i');
+  const match = body.match(regex);
+  if (match && match.index !== undefined) {
+    const openIdx = match.index! + match[0].length - 1;
+    return matchBraces(body, openIdx);
+  }
+  return null;
+}
+
+function parseSubClassRect(subBody: string | null): RectPos | undefined {
+  if (!subBody) return undefined;
+  const left = parseCoordValue(extractProperty(subBody, 'left') ?? '0');
+  const top = parseCoordValue(extractProperty(subBody, 'top') ?? '0');
+  const right = parseCoordValue(extractProperty(subBody, 'right') ?? '0');
+  const bottom = parseCoordValue(extractProperty(subBody, 'bottom') ?? '0');
+  const w = parseCoordValue(extractProperty(subBody, 'w') ?? undefined);
+  const h = parseCoordValue(extractProperty(subBody, 'h') ?? undefined);
+  const rect: RectPos = { left, top, right, bottom };
+  if (w !== undefined) rect.w = w;
+  if (h !== undefined) rect.h = h;
+  return rect;
+}
+
+function parseSubClassAttributes(subBody: string | null): StructuredAttributes | undefined {
+  if (!subBody) return undefined;
+  return {
+    font: extractProperty(subBody, 'font') ?? 'RobotoCondensed',
+    color: extractProperty(subBody, 'color') ?? '#ffffff',
+    align: extractProperty(subBody, 'align') ?? 'left',
+    shadow: parseOptionalInt(extractProperty(subBody, 'shadow')) ?? 1,
+  };
+}
+
+function parseSubClassImageAttributes(subBody: string | null): ImageAttributes | undefined {
+  if (!subBody) return undefined;
+  return {
+    font: extractProperty(subBody, 'font') ?? 'RobotoCondensed',
+    color: extractProperty(subBody, 'color') ?? '#E5E5E5',
+    align: extractProperty(subBody, 'align') ?? 'left',
+  };
+}
+
+function parseScrollBarSubClass(subBody: string | null): ScrollBarConfig | undefined {
+  if (!subBody) return undefined;
+  const config: ScrollBarConfig = {};
+  const w = extractProperty(subBody, 'width');
+  const h = extractProperty(subBody, 'height');
+  if (w !== null) config.width = parseFloat(w);
+  if (h !== null) config.height = parseFloat(h);
+  const ase = extractProperty(subBody, 'autoScrollEnabled');
+  if (ase !== null) config.autoScrollEnabled = parseInt(ase);
+  const ass = extractProperty(subBody, 'autoScrollSpeed');
+  if (ass !== null) config.autoScrollSpeed = parseFloat(ass);
+  const asd = extractProperty(subBody, 'autoScrollDelay');
+  if (asd !== null) config.autoScrollDelay = parseFloat(asd);
+  const asr = extractProperty(subBody, 'autoScrollRewind');
+  if (asr !== null) config.autoScrollRewind = parseFloat(asr);
+  const ss = extractProperty(subBody, 'scrollSpeed');
+  if (ss !== null) config.scrollSpeed = parseFloat(ss);
+  const col = extractProperty(subBody, 'color');
+  if (col !== null) config.color = parseColorArray(col);
+  const ca = extractProperty(subBody, 'colorActive');
+  if (ca !== null) config.colorActive = parseColorArray(ca);
+  const cd = extractProperty(subBody, 'colorDisabled');
+  if (cd !== null) config.colorDisabled = parseColorArray(cd);
+  config.thumb = extractPropertyStr(subBody, 'thumb');
+  config.arrowEmpty = extractPropertyStr(subBody, 'arrowEmpty');
+  config.arrowFull = extractPropertyStr(subBody, 'arrowFull');
+  config.border = extractPropertyStr(subBody, 'border');
+  const sh = extractProperty(subBody, 'shadow');
+  if (sh !== null) config.shadow = parseInt(sh);
+  return Object.keys(config).length > 0 ? config : undefined;
+}
+
+function parseStringArray(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  const parts = raw.split(',').map(s => {
+    const trimmed = s.trim();
+    if ((trimmed.startsWith('"') || trimmed.startsWith("'")) &&
+        (trimmed.endsWith('"') || trimmed.endsWith("'"))) {
+      return trimmed.slice(1, -1);
+    }
+    return trimmed;
+  }).filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
 }
 
 function parseType(raw: string | null): number {

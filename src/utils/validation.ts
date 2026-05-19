@@ -172,6 +172,28 @@ export function validateDialog(dialog: DialogConfig): ValidationIssue[] {
     }
   }
 
+  // 11. ST_PICTURE dimensions not power-of-two
+  for (const ctrl of allControls) {
+    if (hasStyleFlag(ctrl.style, 0x30)) {
+      const isPow2 = (n: number): boolean => n > 0 && (n & (n - 1)) === 0;
+      const wVal = typeof ctrl.w === 'number' ? ctrl.w : NaN;
+      const hVal = typeof ctrl.h === 'number' ? ctrl.h : NaN;
+      // Only check if dimensions are absolute numbers (not expressions)
+      if (!isNaN(wVal) && !isNaN(hVal) && wVal > 0 && hVal > 0) {
+        // Convert to approximate pixel dimensions for power-of-two check
+        // (rough heuristic — these are grid-relative values)
+        if (!isPow2(Math.round(wVal * 100)) && !isPow2(Math.round(hVal * 100))) {
+          issues.push({
+            severity: 'info',
+            message: `Control "${ctrl.className}" has ST_PICTURE style but dimensions may not be power-of-two. Arma textures should use power-of-two sizes (64, 128, 256, 512, 1024, 2048 pixels).`,
+            dialogId: did,
+            controlId: ctrl.id,
+          });
+        }
+      }
+    }
+  }
+
   return issues;
 }
 

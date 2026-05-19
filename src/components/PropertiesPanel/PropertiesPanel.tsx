@@ -10,6 +10,7 @@ import { IdentitySection } from './IdentitySection';
 import { PositionSection } from './PositionSection';
 import { StyleFlagsSection } from './StyleFlagsSection';
 import { AppearanceSection } from './AppearanceSection';
+import { TypeSpecificSection } from './TypeSpecificSection';
 import { EventHandlersSection } from './EventHandlersSection';
 import { UIEHPicker } from './UIEHPicker';
 import { UIEH_DEFINITIONS as uiehDefs } from '../../data/uiehDefinitions';
@@ -72,6 +73,7 @@ export const PropertiesPanel: React.FC = () => {
               <PositionSection />
               <StyleFlagsSection />
               <AppearanceSection />
+              <TypeSpecificSection />
               <EventHandlersSection />
             </div>
           ) : activeDialog ? (

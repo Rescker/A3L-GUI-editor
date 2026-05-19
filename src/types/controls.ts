@@ -46,6 +46,13 @@ export type AccessLevel = 0 | 1 | 2 | 3;
 
 export type ColorRGBA = [number, number, number, number];
 
+// String or number color array element (SQF expressions: "profilenamespace getvariable ['GUI_BCG_RGB_R',0.69]")
+export type ColorElement = number | string;
+export type ColorArray = [ColorElement, ColorElement, ColorElement, ColorElement];
+
+// Sound entry: [file, volume, pitch]
+export type SoundEntry = [string, number, number];
+
 // =============================================================================
 // Event Handler Definitions
 // =============================================================================
@@ -72,6 +79,49 @@ export interface EventHandlerConfig {
   code: string;
 }
 
+// Rectangle position
+export interface RectPos {
+  left: number | string;
+  top: number | string;
+  right: number | string;
+  bottom: number | string;
+  w?: number | string;
+  h?: number | string;
+}
+
+// Structured Text / ShortcutButton attributes
+export interface StructuredAttributes {
+  font: string;
+  color: string;
+  align: string;
+  shadow: number | string;
+}
+
+export interface ImageAttributes {
+  font: string;
+  color: string;
+  align: string;
+}
+
+// Scrollbar sub-class configuration
+export interface ScrollBarConfig {
+  width?: number;
+  height?: number;
+  autoScrollEnabled?: number;
+  autoScrollSpeed?: number;
+  autoScrollDelay?: number;
+  autoScrollRewind?: number;
+  scrollSpeed?: number;
+  color?: ColorRGBA;
+  colorActive?: ColorRGBA;
+  colorDisabled?: ColorRGBA;
+  thumb?: string;
+  arrowEmpty?: string;
+  arrowFull?: string;
+  border?: string;
+  shadow?: number;
+}
+
 export interface ControlConfig {
   id: string;                 // internal UUID for React keys
   className: string;          // Config class name, e.g. "RscButton_1600"
@@ -82,7 +132,7 @@ export interface ControlConfig {
   y: string | number;
   w: string | number;
   h: string | number;
-  sizeEx: number;
+  sizeEx: number | string;
   font: string;
   colorText: ColorRGBA;
   colorBackground: ColorRGBA;
@@ -100,7 +150,6 @@ export interface ControlConfig {
   parentClass: string;        // inheritance: e.g. "RscText", "RscButton"
   eventHandlers: EventHandlerConfig[];
   children?: ControlConfig[]; // for CT_CONTROLS_GROUP (type=15)
-  // Type-specific optional fields:
   lineSpacing?: number;
   tileH?: number;
   tileW?: number;
@@ -109,6 +158,200 @@ export interface ControlConfig {
   fade?: number;
   access?: AccessLevel;
   onLoad?: string;
+
+  // === Checkbox properties (type 77) ===
+  default?: number;
+  blinkingPeriod?: number;
+  textureChecked?: string;
+  textureUnchecked?: string;
+  textureFocusedChecked?: string;
+  textureFocusedUnchecked?: string;
+  textureHoverChecked?: string;
+  textureHoverUnchecked?: string;
+  texturePressedChecked?: string;
+  texturePressedUnchecked?: string;
+  textureDisabledChecked?: string;
+  textureDisabledUnchecked?: string;
+
+  // === Checkboxes (type 7) ===
+  columns?: number;
+  rows?: number;
+  strings?: string[];
+  checkedStrings?: string[];
+  colorTextSelect?: ColorRGBA;
+  colorSelectedBg?: ColorArray;
+  colorSelect?: ColorRGBA;
+  colorTextDisable?: ColorRGBA;
+  colorDisable?: ColorRGBA;
+
+  // === Shared hover/focused/pressed color states ===
+  colorHover?: ColorRGBA;
+  colorFocused?: ColorArray;
+  colorPressed?: ColorRGBA;
+  colorBackgroundHover?: ColorRGBA;
+  colorBackgroundFocused?: ColorArray;
+  colorBackgroundPressed?: ColorRGBA;
+  colorBackgroundDisabled?: ColorRGBA;
+  colorShadow?: ColorRGBA;
+  colorBorder?: ColorRGBA;
+  borderSize?: number;
+  colorActive?: ColorRGBA;
+  color2?: ColorRGBA;
+  colorBackground2?: ColorRGBA;
+  colorSelect2?: ColorRGBA;
+  colorSelectBackground?: ColorRGBA;
+  colorSelectBackground2?: ColorRGBA;
+  colorScrollbar?: ColorRGBA;
+  colorPicture?: ColorRGBA;
+  colorPictureSelected?: ColorRGBA;
+  colorPictureDisabled?: ColorRGBA;
+
+  // === Image preview (canvas-only, not exported) ===
+  imageDataUrl?: string;
+
+  // === Sound properties ===
+  soundEnter?: SoundEntry;
+  soundPush?: SoundEntry;
+  soundClick?: SoundEntry;
+  soundEscape?: SoundEntry;
+  soundSelect?: SoundEntry;
+  soundExpand?: SoundEntry;
+  soundCollapse?: SoundEntry;
+
+  // === Button-specific (type 1) ===
+  offsetX?: number;
+  offsetY?: number;
+  offsetPressedX?: number;
+  offsetPressedY?: number;
+
+  // === ShortcutButton-specific (type 16) ===
+  animTextureNormal?: string;
+  animTextureDisabled?: string;
+  animTextureOver?: string;
+  animTextureFocused?: string;
+  animTexturePressed?: string;
+  animTextureDefault?: string;
+  period?: number;
+  periodFocus?: number;
+  periodOver?: number;
+  action?: string;
+  textureNoShortcut?: string;
+  hitZone?: RectPos;
+  shortcutPos?: RectPos;
+  textPos?: RectPos;
+  attributes?: StructuredAttributes;
+  attributesImage?: ImageAttributes;
+
+  // === ScrollBar properties ===
+  scrollSpeed?: number;
+  autoScrollEnabled?: number;
+  vScrollBar?: ScrollBarConfig;
+  hScrollBar?: ScrollBarConfig;
+
+  // === ListBox / ListNBox / Combo specific (types 4, 5, 102) ===
+  wholeHeight?: number;
+  rowHeight?: number;
+  maxHistoryDelay?: number;
+  autoScrollSpeed?: number;
+  autoScrollDelay?: number;
+  autoScrollRewind?: number;
+
+  // === Slider / XSlider specific (types 3, 43) ===
+  arrowEmpty?: string;
+  arrowFull?: string;
+  border?: string;
+  thumb?: string;
+
+  // === Progress specific (type 8) ===
+  texture?: string;
+  colorFrame?: ColorRGBA;
+  colorBar?: ColorArray;
+
+  // === Edit specific (type 2) ===
+  autocomplete?: boolean;
+  colorSelection?: ColorArray;
+  canModify?: number;
+
+  // === Tree specific (type 12) ===
+  expandedTexture?: string;
+  hiddenTexture?: string;
+
+  // === ActiveText specific (type 11) ===
+
+  // === StructuredText specific (type 13) ===
+  size?: number | string;
+  structuredAttributes?: StructuredAttributes;
+
+  // === HTML specific (type 9) ===
+  colorBold?: ColorRGBA;
+  colorLink?: ColorRGBA;
+  colorLinkActive?: ColorRGBA;
+  prevPage?: string;
+  nextPage?: string;
+
+  // === HitZones specific ===
+  xCount?: number;
+  yCount?: number;
+  xSpace?: number;
+  ySpace?: number;
+
+  // === MapControl specific (type 101) ===
+  colorOutside?: ColorRGBA;
+  colorSea?: ColorRGBA;
+  colorForest?: ColorRGBA;
+  colorRocks?: ColorRGBA;
+  colorCountlines?: ColorRGBA;
+  colorMainCountlines?: ColorRGBA;
+  colorCountlinesWater?: ColorRGBA;
+  colorMainCountlinesWater?: ColorRGBA;
+  colorForestBorder?: ColorRGBA;
+  colorRocksBorder?: ColorRGBA;
+  colorPowerLines?: ColorRGBA;
+  colorRailWay?: ColorRGBA;
+  colorNames?: ColorRGBA;
+  colorInactive?: ColorRGBA;
+  colorLevels?: ColorRGBA;
+  colorTracks?: ColorRGBA;
+  colorRoads?: ColorRGBA;
+  colorMainRoads?: ColorRGBA;
+  colorTracksFill?: ColorRGBA;
+  colorRoadsFill?: ColorRGBA;
+  colorMainRoadsFill?: ColorRGBA;
+  colorGrid?: ColorRGBA;
+  colorGridMap?: ColorRGBA;
+  scaleMin?: number;
+  scaleMax?: number;
+  scaleDefault?: number;
+  maxSatelliteAlpha?: number;
+  alphaFadeStartScale?: number;
+  alphaFadeEndScale?: number;
+  fontLabel?: string;
+  sizeExLabel?: number | string;
+  fontGrid?: string;
+  sizeExGrid?: number;
+  fontUnits?: string;
+  sizeExUnits?: number | string;
+  fontNames?: string;
+  sizeExNames?: number | string;
+  fontInfo?: string;
+  sizeExInfo?: number | string;
+  fontLevel?: string;
+  sizeExLevel?: number;
+  moveOnEdges?: number;
+  widthRailWay?: number;
+  stickX?: [number, { [key: string]: number }];
+  stickY?: [number, { [key: string]: number }];
+  ptsPerSquareSea?: number;
+  ptsPerSquareTxt?: number;
+  ptsPerSquareCLn?: number;
+  ptsPerSquareExp?: number;
+  ptsPerSquareCost?: number;
+  ptsPerSquareFor?: number;
+  ptsPerSquareForEdge?: number;
+  ptsPerSquareRoad?: number;
+  ptsPerSquareObj?: number;
+  showCountourInterval?: number;
+
 }
 
 // =============================================================================
