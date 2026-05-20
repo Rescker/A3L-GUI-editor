@@ -314,6 +314,95 @@ function isGenericDefault(key: string, val: unknown): boolean {
   }
 }
 
+// =============================================================================
+// Resolve inline class definitions — when controls[] = { A, B } references
+// classes defined later in the same config body (class A : Base { ... };).
+// Parses ALL class blocks, resolves transitive inheritance within the file,
+// then merges resolved properties into matching placeholder controls.
+// =============================================================================
+function resolveInlineClasses(controls: ControlConfig[], body: string): ControlConfig[] {
+  const placeholderByName = new Map<string, ControlConfig>();
+  for (const c of controls) placeholderByName.set(c.className, c);
+
+  // === Pass 1: Parse ALL class definitions into a temp map ===
+  const classDefs = new Map<string, { parsed: ControlConfig; parentName: string | undefined }>();
+  let idx = 0;
+  while (idx < body.length) {
+    const classMatch = body.slice(idx).match(/class\s+(\w+)\s*(?::\s*(\w+))?\s*\{/);
+    if (!classMatch || classMatch.index === undefined) break;
+
+    const classStart = idx + classMatch.index!;
+    const braceOpenIdx = classStart + classMatch[0].length - 1;
+    const classBody = matchBraces(body, braceOpenIdx);
+
+    if (classBody !== null) {
+      const className = classMatch[1];
+      const parentName = classMatch[2];
+      const parsed = parseControlBlock(className, parentName, classBody);
+      if (parsed) {
+        classDefs.set(className, { parsed, parentName });
+      }
+
+      const afterBody = braceOpenIdx + classBody.length + 1;
+      const rest = body.slice(afterBody);
+      const semiIdx = rest.indexOf(';');
+      idx = afterBody + (semiIdx >= 0 ? semiIdx + 1 : 1);
+    } else {
+      idx++;
+    }
+  }
+
+  // === Pass 2: Resolve inheritance chains within the file ===
+  // Iterative resolution: keep merging until no more changes
+  let changed = true;
+  let maxIter = classDefs.size + 1;
+  while (changed && maxIter-- > 0) {
+    changed = false;
+    for (const [className, { parsed, parentName }] of classDefs) {
+      if (!parentName) continue;
+      const parentDef = classDefs.get(parentName);
+      if (!parentDef) continue;
+      const parentParsed = parentDef.parsed;
+
+      // Merge parent's non-default properties into child
+      let mergedSomething = false;
+      for (const key of Object.keys(parentParsed) as (keyof ControlConfig)[]) {
+        if (key === 'id' || key === 'className' || key === 'children') continue;
+        const parentVal = (parentParsed as unknown as Record<string, unknown>)[key];
+        const childVal = (parsed as unknown as Record<string, unknown>)[key];
+        if (parentVal !== undefined && !isGenericDefault(key, parentVal)) {
+          // Only apply if child doesn't override with a non-default value
+          if (childVal === undefined || isGenericDefault(key, childVal)) {
+            (parsed as unknown as Record<string, unknown>)[key] = parentVal;
+            mergedSomething = true;
+          }
+        }
+      }
+      if (mergedSomething) changed = true;
+    }
+  }
+
+  // === Pass 3: Apply resolved properties to matching placeholder controls ===
+  for (const [className, { parsed }] of classDefs) {
+    const placeholder = placeholderByName.get(className);
+    if (!placeholder) continue;
+
+    const merged: ControlConfig = { ...placeholder };
+    for (const key of Object.keys(parsed) as (keyof ControlConfig)[]) {
+      if (key === 'id' || key === 'className' || key === 'children') continue;
+      const parsedVal = (parsed as unknown as Record<string, unknown>)[key];
+      if (parsedVal !== undefined && !isGenericDefault(key, parsedVal)) {
+        (merged as unknown as Record<string, unknown>)[key] = parsedVal;
+      }
+    }
+    merged.className = placeholder.className;
+    const ctrlIdx = controls.findIndex(c => c.id === placeholder.id);
+    if (ctrlIdx >= 0) controls[ctrlIdx] = merged;
+  }
+
+  return controls;
+}
+
 function parseControlList(body: string, zoneName: string, _defines: Map<string, string>): ControlConfig[] {
   const controls: ControlConfig[] = [];
 
@@ -379,7 +468,7 @@ function parseControlList(body: string, zoneName: string, _defines: Map<string, 
         eventHandlers: [],
       });
     }
-    return resolveControlInheritance(controls);
+    return resolveInlineClasses(resolveControlInheritance(controls), body);
   }
 
   return controls;
