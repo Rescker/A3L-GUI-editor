@@ -50,6 +50,13 @@ interface SingleResizeState {
   offsetY: number;
 }
 
+interface PanState {
+  startScrollX: number;
+  startScrollY: number;
+  startMouseX: number;
+  startMouseY: number;
+}
+
 // =============================================================================
 // Canvas Component
 // =============================================================================
@@ -89,9 +96,11 @@ export const Canvas: React.FC = () => {
   const resizeStateRef = useRef<SingleResizeState | null>(null);
   const groupResizeRef = useRef<GroupResizeState | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const panStateRef = useRef<PanState | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [pendingDrag, setPendingDrag] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
 
   const DRAG_THRESHOLD = 4;
 
@@ -267,12 +276,25 @@ export const Canvas: React.FC = () => {
   const clipboardRef = useRef<ControlConfig[]>([]);
 
   // ===========================================================================
-  // Document-level mousemove — shared by drag and resize
+  // Document-level mousemove — shared by drag, resize, and pan
   // ===========================================================================
   useEffect(() => {
-    if (!pendingDrag && !isDragging && !isResizing) return;
+    if (!pendingDrag && !isDragging && !isResizing && !isPanning) return;
 
     const handleMouseMove = (e: MouseEvent) => {
+      // === Pan (middle mouse) ===
+      if (isPanning && panStateRef.current) {
+        const ps = panStateRef.current;
+        const dx = e.clientX - ps.startMouseX;
+        const dy = e.clientY - ps.startMouseY;
+        const container = containerRef.current;
+        if (container) {
+          container.scrollLeft = ps.startScrollX - dx;
+          container.scrollTop = ps.startScrollY - dy;
+        }
+        return;
+      }
+
       if (!activeDialogId) return;
       const canvasMouse = getCanvasMouse(e);
       if (!canvasMouse) return;
@@ -595,6 +617,10 @@ export const Canvas: React.FC = () => {
       if (pendingDrag) {
         setPendingDrag(false);
       }
+      if (isPanning) {
+        panStateRef.current = null;
+        setIsPanning(false);
+      }
       dragStateRef.current = null;
       resizeStateRef.current = null;
       groupResizeRef.current = null;
@@ -611,7 +637,7 @@ export const Canvas: React.FC = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [pendingDrag, isDragging, isResizing, activeDialogId, scale, snapToGrid, moveControl, resizeControl, resizeMultipleControls, showAlignmentGuides, snapToAlignment, setAlignmentGuides, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, buildRectsForControls]);
+  }, [pendingDrag, isDragging, isResizing, isPanning, activeDialogId, scale, snapToGrid, moveControl, resizeControl, resizeMultipleControls, showAlignmentGuides, snapToAlignment, setAlignmentGuides, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, buildRectsForControls]);
 
   // ===========================================================================
   // Keyboard: Delete, Escape, Ctrl+C, Ctrl+V, Arrow nudging
@@ -731,6 +757,21 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const handleCanvasMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      // Middle mouse button → start panning
+      if (e.button === 1) {
+        e.preventDefault();
+        const container = containerRef.current;
+        if (!container) return;
+        panStateRef.current = {
+          startScrollX: container.scrollLeft,
+          startScrollY: container.scrollTop,
+          startMouseX: e.clientX,
+          startMouseY: e.clientY,
+        };
+        setIsPanning(true);
+        return;
+      }
+
       const target = e.target as HTMLElement;
       // Only deselect if clicking on canvas background (not a control or its handles)
       const isOnControl = target.closest('[data-control-id]');
@@ -765,6 +806,22 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const handleControlMouseDown = useCallback(
     (controlId: string, e: React.MouseEvent) => {
+      // Middle mouse button → start panning instead of control drag
+      if (e.button === 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        const container = containerRef.current;
+        if (!container) return;
+        panStateRef.current = {
+          startScrollX: container.scrollLeft,
+          startScrollY: container.scrollTop,
+          startMouseX: e.clientX,
+          startMouseY: e.clientY,
+        };
+        setIsPanning(true);
+        return;
+      }
+
       e.stopPropagation();
       selectControl(controlId, e.ctrlKey || e.metaKey);
 
@@ -864,16 +921,33 @@ export const Canvas: React.FC = () => {
   );
 
   // ===========================================================================
-  // Ctrl+Scroll / Alt+Scroll zoom
+  // Ctrl+Scroll / Alt+Scroll zoom — cursor-centered (Photoshop-style)
   // ===========================================================================
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       if (!e.ctrlKey && !e.altKey) return;
       e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
       const store = useEditorStore.getState();
+      const oldScale = store.zoomLevel;
+
+      const canvasX = (mx + container.scrollLeft) / oldScale;
+      const canvasY = (my + container.scrollTop) / oldScale;
+
       const delta = e.deltaY > 0 ? -0.05 : 0.05;
-      const newZoom = Math.max(0.1, Math.min(3.0, store.zoomLevel + delta));
-      store.setZoomLevel(Math.round(newZoom * 100) / 100);
+      const newScale = Math.max(0.1, Math.min(3.0, oldScale + delta));
+      store.setZoomLevel(Math.round(newScale * 100) / 100);
+
+      requestAnimationFrame(() => {
+        container.scrollLeft = canvasX * newScale - mx;
+        container.scrollTop = canvasY * newScale - my;
+      });
     },
     []
   );
@@ -896,12 +970,16 @@ export const Canvas: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-surface-light rounded-lg m-2 relative outline-none flex items-center justify-center"
+      className="flex-1 overflow-auto bg-surface-light rounded-lg m-2 relative outline-none"
       tabIndex={0}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}
       onClick={() => containerRef.current?.focus()}
-      style={{ cursor: isDragging ? 'grabbing' : isResizing ? 'crosshair' : pendingDrag ? 'grabbing' : 'default' }}
+      style={{
+        display: 'grid',
+        placeItems: 'safe center',
+        cursor: isPanning ? 'grabbing' : isDragging ? 'grabbing' : isResizing ? 'crosshair' : pendingDrag ? 'grabbing' : 'grab',
+      }}
     >
       <div
         ref={canvasInnerRef}
