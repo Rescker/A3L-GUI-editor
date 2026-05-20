@@ -772,6 +772,9 @@ export const Canvas: React.FC = () => {
         return;
       }
 
+      // Only left-click deselects on background
+      if (e.button !== 0) return;
+
       const target = e.target as HTMLElement;
       // Only deselect if clicking on canvas background (not a control or its handles)
       const isOnControl = target.closest('[data-control-id]');
@@ -822,6 +825,9 @@ export const Canvas: React.FC = () => {
         return;
       }
 
+      // Only left-click selects and drags
+      if (e.button !== 0) return;
+
       e.stopPropagation();
       selectControl(controlId, e.ctrlKey || e.metaKey);
 
@@ -855,8 +861,9 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const handleResizeHandleMouseDown = useCallback(
     (controlId: string, dir: ResizeDir, e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+
       e.stopPropagation();
-      e.preventDefault();
 
       const store = useEditorStore.getState();
       const selectedIds = store.selectedControlIds;
@@ -974,6 +981,7 @@ export const Canvas: React.FC = () => {
       tabIndex={0}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}
+      onContextMenu={(e) => e.preventDefault()}
       onClick={() => containerRef.current?.focus()}
       style={{
         display: 'grid',
