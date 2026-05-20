@@ -24,6 +24,9 @@ export const HierarchyPanel: React.FC = () => {
     updateControl,
     addDialog,
     addControlFromTemplate,
+    moveControlUp,
+    moveControlDown,
+    swapControlOrder,
   } = useEditorStore();
 
   type ContextTarget =
@@ -34,6 +37,31 @@ export const HierarchyPanel: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextTarget } | null>(null);
   const [expandedDialogs, setExpandedDialogs] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, controlId: string) => {
+    e.dataTransfer.setData('text/plain', controlId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, controlId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(controlId);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverId(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    setDragOverId(null);
+    const draggedId = e.dataTransfer.getData('text/plain');
+    if (draggedId && draggedId !== targetId && activeDialogId) {
+      swapControlOrder(activeDialogId, draggedId, targetId);
+    }
+  }, [activeDialogId, swapControlOrder]);
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
 
@@ -103,7 +131,12 @@ export const HierarchyPanel: React.FC = () => {
         <div
           className={`flex items-center gap-1 px-1 py-0.5 ml-2 text-xs rounded cursor-pointer group hover:bg-white/5 ${
             isSelected ? 'bg-accent/20 border border-accent/40' : 'border border-transparent'
-          }`}
+          } ${dragOverId === ctrl.id ? 'bg-accent-cyan/30 border border-accent-cyan/60' : ''}`}
+          draggable="true"
+          onDragStart={(e) => handleDragStart(e, ctrl.id)}
+          onDragOver={(e) => handleDragOver(e, ctrl.id)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, ctrl.id)}
           onClick={(e) => {
             e.stopPropagation();
             selectControl(ctrl.id, e.ctrlKey || e.metaKey);
@@ -251,6 +284,26 @@ export const HierarchyPanel: React.FC = () => {
                     >
                       ✂ Duplicate
                     </button>
+                    <div className="border-t border-white/5 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        moveControlUp(t.dialogId, t.controlId);
+                        setContextMenu(null);
+                      }}
+                    >
+                      ↑ Move Up
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        moveControlDown(t.dialogId, t.controlId);
+                        setContextMenu(null);
+                      }}
+                    >
+                      ↓ Move Down
+                    </button>
+                    <div className="border-t border-white/5 my-1" />
                     <button
                       className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
                       onClick={() => {

@@ -301,6 +301,9 @@ interface EditorStore {
   setShowAlignmentGuides: (show: boolean) => void;
   setSnapToAlignment: (snap: boolean) => void;
   setAlignmentGuides: (guides: AlignmentGuide[]) => void;
+  moveControlUp: (dialogId: string, controlId: string) => void;
+  moveControlDown: (dialogId: string, controlId: string) => void;
+  swapControlOrder: (dialogId: string, controlIdA: string, controlIdB: string) => void;
 }
 
 // =============================================================================
@@ -696,6 +699,39 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
+  moveControlUp: (dialogId, controlId) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return reorderInDialog(d, controlId, -1);
+      });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
+    });
+  },
+
+  moveControlDown: (dialogId, controlId) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return reorderInDialog(d, controlId, 1);
+      });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
+    });
+  },
+
+  swapControlOrder: (dialogId, controlIdA, controlIdB) => {
+    set(state => {
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        return swapInDialog(d, controlIdA, controlIdB);
+      });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
+    });
+  },
+
   setCursorGridPos: (x, y) => set({ cursorGridX: x, cursorGridY: y }),
   runValidation: () => {
     set(state => ({ validationIssues: validateAll(state.dialogs) }));
@@ -749,6 +785,93 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 // =============================================================================
 // Helper functions
 // =============================================================================
+
+function reorderInDialog(dialog: DialogConfig, controlId: string, direction: -1 | 1): DialogConfig {
+  const updated = { ...dialog };
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+    const idx = updated[zone].findIndex(c => c.id === controlId);
+    if (idx >= 0) {
+      const targetIdx = idx + direction;
+      if (targetIdx >= 0 && targetIdx < updated[zone].length) {
+        const newArr = [...updated[zone]];
+        [newArr[idx], newArr[targetIdx]] = [newArr[targetIdx], newArr[idx]];
+        updated[zone] = newArr;
+        return updated;
+      }
+      return dialog;
+    }
+    const result = reorderInControls(updated[zone], controlId, direction);
+    if (result) {
+      updated[zone] = result;
+      return updated;
+    }
+  }
+  return dialog;
+}
+
+function reorderInControls(controls: ControlConfig[], controlId: string, direction: -1 | 1): ControlConfig[] | null {
+  const arr = [...controls];
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i].id === controlId) {
+      const targetIdx = i + direction;
+      if (targetIdx >= 0 && targetIdx < arr.length) {
+        [arr[i], arr[targetIdx]] = [arr[targetIdx], arr[i]];
+        return arr;
+      }
+      return null;
+    }
+    if (arr[i].children) {
+      const children = arr[i].children as ControlConfig[];
+      const result = reorderInControls(children, controlId, direction);
+      if (result) {
+        arr[i] = { ...arr[i], children: result };
+        return arr;
+      }
+    }
+  }
+  return null;
+}
+
+function swapInDialog(dialog: DialogConfig, controlIdA: string, controlIdB: string): DialogConfig {
+  const updated = { ...dialog };
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as ControlZone[]) {
+    const idxA = updated[zone].findIndex(c => c.id === controlIdA);
+    const idxB = updated[zone].findIndex(c => c.id === controlIdB);
+    if (idxA >= 0 && idxB >= 0) {
+      const newArr = [...updated[zone]];
+      [newArr[idxA], newArr[idxB]] = [newArr[idxB], newArr[idxA]];
+      updated[zone] = newArr;
+      return updated;
+    }
+    const result = swapInControls(updated[zone], controlIdA, controlIdB);
+    if (result) {
+      updated[zone] = result;
+      return updated;
+    }
+  }
+  return dialog;
+}
+
+function swapInControls(controls: ControlConfig[], controlIdA: string, controlIdB: string): ControlConfig[] | null {
+  const arr = [...controls];
+  const idxA = arr.findIndex(c => c.id === controlIdA);
+  const idxB = arr.findIndex(c => c.id === controlIdB);
+  if (idxA >= 0 && idxB >= 0) {
+    [arr[idxA], arr[idxB]] = [arr[idxB], arr[idxA]];
+    return arr;
+  }
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i].children) {
+      const children = arr[i].children as ControlConfig[];
+      const result = swapInControls(children, controlIdA, controlIdB);
+      if (result) {
+        arr[i] = { ...arr[i], children: result };
+        return arr;
+      }
+    }
+  }
+  return null;
+}
 
 function addToGroup(controls: ControlConfig[], groupId: string, child: ControlConfig): ControlConfig[] | null {
   for (let i = 0; i < controls.length; i++) {
