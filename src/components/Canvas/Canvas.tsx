@@ -896,7 +896,7 @@ export const Canvas: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-surface-light rounded-lg m-2 relative outline-none"
+      className="flex-1 overflow-auto bg-surface-light rounded-lg m-2 relative outline-none flex items-center justify-center"
       tabIndex={0}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}

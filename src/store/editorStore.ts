@@ -20,6 +20,7 @@ import { COMPONENT_PRESETS, getPresetById } from '../data/componentLibrary';
 import { validateAll } from '../utils/validation';
 import { generateDialogConfig } from '../utils/configGenerator';
 import { importConfig } from '../utils/configParser';
+import { serializeProject, deserializeProject } from '../utils/projectSerializer';
 
 // =============================================================================
 // Helpers
@@ -304,6 +305,8 @@ interface EditorStore {
   moveControlUp: (dialogId: string, controlId: string) => void;
   moveControlDown: (dialogId: string, controlId: string) => void;
   swapControlOrder: (dialogId: string, controlIdA: string, controlIdB: string) => void;
+  exportProject: () => string;
+  importProject: (json: string) => boolean;
 }
 
 // =============================================================================
@@ -730,6 +733,49 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const hist = pushHistory(state, state.dialogs, newDialogs);
       return { ...hist, dialogs: newDialogs };
     });
+  },
+
+  exportProject: () => {
+    const state = get();
+    const project = serializeProject(state.dialogs, {
+      gridSystem: state.gridSystem,
+      gridVariant: state.gridVariant,
+      showGrid: state.showGrid,
+      snapToGrid: state.snapToGrid,
+      previewResolution: state.previewResolution,
+      previewUIScale: state.previewUIScale,
+      zoomLevel: state.zoomLevel,
+      showAlignmentGuides: state.showAlignmentGuides,
+      snapToAlignment: state.snapToAlignment,
+      exportFormat: state.exportFormat,
+    });
+    return JSON.stringify(project, null, 2);
+  },
+
+  importProject: (json) => {
+    const project = deserializeProject(json);
+    if (!project) return false;
+
+    set({
+      dialogs: project.dialogs,
+      gridSystem: project.editorSettings.gridSystem,
+      gridVariant: project.editorSettings.gridVariant,
+      showGrid: project.editorSettings.showGrid,
+      snapToGrid: project.editorSettings.snapToGrid,
+      previewResolution: project.editorSettings.previewResolution,
+      previewUIScale: project.editorSettings.previewUIScale,
+      zoomLevel: project.editorSettings.zoomLevel,
+      showAlignmentGuides: project.editorSettings.showAlignmentGuides,
+      snapToAlignment: project.editorSettings.snapToAlignment,
+      exportFormat: project.editorSettings.exportFormat as 'class' | 'full_dialog' | 'hud' | 'editor_format',
+      activeDialogId: project.dialogs[0]?.id ?? null,
+      selectedControlIds: [],
+      editingControlId: null,
+      history: [structuredClone(project.dialogs)],
+      historyIndex: 0,
+      validationIssues: validateAll(project.dialogs),
+    });
+    return true;
   },
 
   setCursorGridPos: (x, y) => set({ cursorGridX: x, cursorGridY: y }),

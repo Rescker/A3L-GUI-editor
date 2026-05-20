@@ -2,9 +2,10 @@
 // Toolbar — Top bar above the canvas with grid, resolution, zoom controls
 // =============================================================================
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { useEditorStore } from '../../store/editorStore';
 import { GRID_SYSTEM_LABELS, GUI_GRID_VARIANTS, RESOLUTION_PRESETS, UI_SCALE_LABELS } from '../../data/gridVariants';
+import { downloadProjectFile } from '../../utils/projectSerializer';
 import type { GridSystem } from '../../types/controls';
 
 export const Toolbar: React.FC = () => {
@@ -37,6 +38,41 @@ export const Toolbar: React.FC = () => {
     undo,
     redo,
   } = useEditorStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveProject = useCallback(() => {
+    const json = useEditorStore.getState().exportProject();
+    const firstDialog = useEditorStore.getState().dialogs[0];
+    const filename = firstDialog
+      ? `${firstDialog.className.replace(/[^a-zA-Z0-9_-]/g, '_')}-project.json`
+      : 'gui-editor-project.json';
+    downloadProjectFile(json, filename);
+  }, []);
+
+  const handleOpenProject = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result;
+      if (typeof text === 'string') {
+        const success = useEditorStore.getState().importProject(text);
+        if (!success) {
+          alert('Failed to load project file. The file may be corrupted or in an unsupported format.');
+        }
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset the input so the same file can be re-loaded
+    e.target.value = '';
+  }, []);
 
   return (
     <div className="h-10 bg-surface-light border-b border-white/5 flex items-center px-2 gap-1.5 text-xs shrink-0">
@@ -212,6 +248,31 @@ export const Toolbar: React.FC = () => {
       >
         Export
       </button>
+
+      <div className="w-px h-4 bg-white/10" />
+
+      {/* Project Save / Load */}
+      <button
+        className="px-2 py-1 bg-surface hover:bg-surface-light rounded text-gray-300 text-[11px] font-medium"
+        onClick={handleOpenProject}
+        title="Open project file"
+      >
+        Open
+      </button>
+      <button
+        className="px-2 py-1 bg-accent-purple/70 hover:bg-accent-purple rounded text-white text-[11px] font-medium"
+        onClick={handleSaveProject}
+        title="Save project file"
+      >
+        Save
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleFileChange}
+      />
     </div>
   );
 };
