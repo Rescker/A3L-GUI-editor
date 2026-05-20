@@ -73,6 +73,7 @@ export const Canvas: React.FC = () => {
     moveMultipleControls,
     resizeMultipleControls,
     removeControl,
+    addControlFromTemplate,
     setCursorGridPos,
     setZoomLevel,
     runValidation,
@@ -709,16 +710,13 @@ export const Canvas: React.FC = () => {
         e.preventDefault();
         const store = useEditorStore.getState();
         for (const copy of clipboardRef.current) {
-          // Offset each pasted copy slightly
+          const clone = structuredClone(copy);
           const coords = controlToCanvasCoords(copy, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
-          const gridExpr = pixelToCurrentGrid(coords.x + 1, coords.y + 1, coords.w, coords.h);
-          // Create a new control with same properties but new id/idc
-          const newCtrl: ControlConfig = {
-            ...structuredClone(copy),
-            x: gridExpr.x,
-            y: gridExpr.y,
-          };
-          store.addControl(dialogId, copy.type, 'controls');
+          const offsetPx = Math.max(20, coords.w * 0.1);
+          const gridExpr = pixelToCurrentGrid(coords.x + offsetPx, coords.y + offsetPx, coords.w, coords.h);
+          clone.x = gridExpr.x;
+          clone.y = gridExpr.y;
+          store.addControlFromTemplate(dialogId, clone, 'controls');
         }
         return;
       }

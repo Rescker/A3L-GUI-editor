@@ -30,6 +30,10 @@ function uid(): string {
   return `ctrl_${Date.now()}_${++idCounter}`;
 }
 
+function nextIdc(): number {
+  return 1600 + idCounter;
+}
+
 function createDefaultControl(type: ControlType): ControlConfig {
   const info = CONTROL_TYPES.find(ct => ct.type === type);
   return {
@@ -265,6 +269,7 @@ interface EditorStore {
   setActiveDialog: (id: string) => void;
   addControl: (dialogId: string, type: ControlType, zone: ControlZone) => void;
   addControlFromPreset: (dialogId: string, presetId: string, zone: ControlZone) => void;
+  addControlFromTemplate: (dialogId: string, control: ControlConfig, zone: ControlZone) => void;
   updateControl: (dialogId: string, controlId: string, patch: Partial<ControlConfig>) => void;
   removeControl: (dialogId: string, controlId: string) => void;
   moveControl: (dialogId: string, controlId: string, x: number | string, y: number | string) => void;
@@ -399,6 +404,33 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...hist,
         dialogs: newDialogs,
         selectedControlIds: [control.id],
+        validationIssues: validateAll(newDialogs),
+      };
+    });
+  },
+
+  addControlFromTemplate: (dialogId, control, zone) => {
+    set(state => {
+      // Generate new unique identifiers
+      const clone = structuredClone(control);
+      clone.id = uid();
+      clone.idc = nextIdc();
+      clone.className = `${control.className}_copy`;
+      // Clear children unless it's a controls group (type 15)
+      if (clone.type !== 15) {
+        clone.children = undefined;
+      }
+      const newDialogs = state.dialogs.map(d => {
+        if (d.id !== dialogId) return d;
+        const updated = { ...d };
+        updated[zone] = [...d[zone], clone];
+        return updated;
+      });
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return {
+        ...hist,
+        dialogs: newDialogs,
+        selectedControlIds: [clone.id],
         validationIssues: validateAll(newDialogs),
       };
     });

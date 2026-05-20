@@ -23,6 +23,7 @@ export const HierarchyPanel: React.FC = () => {
     clearSelection,
     updateControl,
     addDialog,
+    addControlFromTemplate,
   } = useEditorStore();
 
   type ContextTarget =
@@ -231,7 +232,22 @@ export const HierarchyPanel: React.FC = () => {
                     <div className="px-2 py-0.5 text-[10px] text-gray-500 uppercase">Control Actions</div>
                     <button
                       className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
-                      onClick={() => { setContextMenu(null); }}
+                      onClick={() => {
+                        const store = useEditorStore.getState();
+                        const dialog = store.dialogs.find(d => d.id === t.dialogId);
+                        if (!dialog) { setContextMenu(null); return; }
+                        const found = findControlWithZone(dialog, t.controlId);
+                        if (found) {
+                          const clone = structuredClone(found.control);
+                          // Offset position slightly to avoid overlap
+                          const xExpr = offsetExpression(found.control.x, 1);
+                          const yExpr = offsetExpression(found.control.y, 1);
+                          clone.x = xExpr;
+                          clone.y = yExpr;
+                          addControlFromTemplate(t.dialogId, clone, found.zone);
+                        }
+                        setContextMenu(null);
+                      }}
                     >
                       ✂ Duplicate
                     </button>
@@ -336,3 +352,47 @@ export const HierarchyPanel: React.FC = () => {
     </div>
   );
 };
+
+// =============================================================================
+// Helpers
+// =============================================================================
+function findControlWithZone(
+  dialog: import('../../types/controls').DialogConfig,
+  controlId: string
+): { zone: import('../../types/controls').ControlZone; control: import('../../types/controls').ControlConfig } | null {
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as import('../../types/controls').ControlZone[]) {
+    for (const ctrl of dialog[zone]) {
+      if (ctrl.id === controlId) return { zone, control: ctrl };
+      if (ctrl.children) {
+        const found = findInChildren(ctrl.children, controlId);
+        if (found) return { zone, control: found };
+      }
+    }
+  }
+  return null;
+}
+
+function findInChildren(children: import('../../types/controls').ControlConfig[], controlId: string): import('../../types/controls').ControlConfig | null {
+  for (const ctrl of children) {
+    if (ctrl.id === controlId) return ctrl;
+    if (ctrl.children) {
+      const found = findInChildren(ctrl.children, controlId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function offsetExpression(expr: string | number, delta: number): string | number {
+  if (typeof expr === 'number') return expr + delta;
+  const trimmed = expr.trim();
+  const numMatch = trimmed.match(/^([\d.-]+)\s*(\s*[+\-*/]\s*.+)$/);
+  if (numMatch) {
+    const baseVal = parseFloat(numMatch[1]);
+    const rest = numMatch[2];
+    if (!isNaN(baseVal)) return `${Math.round((baseVal + delta) * 10000) / 10000}${rest}`;
+  }
+  const num = parseFloat(trimmed);
+  if (!isNaN(num)) return Math.round((num + delta) * 10000) / 10000;
+  return expr;
+}
