@@ -13,6 +13,7 @@ import type {
   GridSystem,
   ControlZone,
   ValidationIssue,
+  AlignmentGuide,
 } from '../types/controls';
 import { CONTROL_TYPES } from '../data/controlDefaults';
 import { COMPONENT_PRESETS, getPresetById } from '../data/componentLibrary';
@@ -246,6 +247,9 @@ interface EditorStore {
   validationIssues: ValidationIssue[];
   history: DialogConfig[][];
   historyIndex: number;
+  showAlignmentGuides: boolean;
+  snapToAlignment: boolean;
+  alignmentGuides: AlignmentGuide[];
 
   // Actions
   addDialog: (type: UIContainerType) => void;
@@ -280,6 +284,10 @@ interface EditorStore {
   runValidation: () => void;
   undo: () => void;
   redo: () => void;
+  resizeMultipleControls: (dialogId: string, updates: { id: string; x: number | string; y: number | string; w: number | string; h: number | string }[]) => void;
+  setShowAlignmentGuides: (show: boolean) => void;
+  setSnapToAlignment: (snap: boolean) => void;
+  setAlignmentGuides: (guides: AlignmentGuide[]) => void;
 }
 
 // =============================================================================
@@ -309,6 +317,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   validationIssues: [],
   history: [],
   historyIndex: -1,
+  showAlignmentGuides: true,
+  snapToAlignment: true,
+  alignmentGuides: [],
 
   // === Dialog Actions ===
 
@@ -649,6 +660,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   runValidation: () => {
     set(state => ({ validationIssues: validateAll(state.dialogs) }));
   },
+
+  resizeMultipleControls: (dialogId, updates) => {
+    set(state => {
+      let newDialogs = state.dialogs;
+      for (const { id, x, y, w, h } of updates) {
+        newDialogs = newDialogs.map(d => {
+          if (d.id !== dialogId) return d;
+          return updateControlInDialog(d, id, { x, y, w, h });
+        });
+      }
+      const hist = pushHistory(state, state.dialogs, newDialogs);
+      return { ...hist, dialogs: newDialogs };
+    });
+  },
+
+  setShowAlignmentGuides: (show) => set({ showAlignmentGuides: show }),
+  setSnapToAlignment: (snap) => set({ snapToAlignment: snap }),
+  setAlignmentGuides: (guides) => set({ alignmentGuides: guides }),
 
   undo: () => {
     set(state => {

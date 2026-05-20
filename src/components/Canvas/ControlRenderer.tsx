@@ -62,20 +62,22 @@ export const ControlRenderer: React.FC<Props> = ({
     const isPicture = hasStyleFlag(control.style, 0x30);
     const isFrame = hasStyleFlag(control.style, 0x40);
 
-    // CT_STATIC with ST_PICTURE
-    if (ft === 0 && isPicture) {
-      if (control.imageDataUrl) {
-        return (
-          <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
-            <img
-              src={control.imageDataUrl}
-              alt={text || 'Picture'}
-              className="max-w-full max-h-full pointer-events-none"
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
-        );
-      }
+    // All controls with ST_PICTURE + loaded image
+    if (isPicture && control.imageDataUrl) {
+      return (
+        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>
+          <img
+            src={control.imageDataUrl}
+            alt={text || 'Picture'}
+            className="max-w-full max-h-full pointer-events-none"
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
+      );
+    }
+
+    // All controls with ST_PICTURE but no image uploaded yet
+    if (isPicture) {
       return (
         <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: textColor }}>
           {text ? `[IMG: ${text}]` : '[Picture]'}

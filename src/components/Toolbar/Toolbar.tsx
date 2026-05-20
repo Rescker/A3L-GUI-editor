@@ -13,6 +13,8 @@ export const Toolbar: React.FC = () => {
     gridVariant,
     showGrid,
     snapToGrid,
+    showAlignmentGuides,
+    snapToAlignment,
     previewResolution,
     previewUIScale,
     zoomLevel,
@@ -23,6 +25,8 @@ export const Toolbar: React.FC = () => {
     setGridVariant,
     setShowGrid,
     setSnapToGrid,
+    setShowAlignmentGuides,
+    setSnapToAlignment,
     setPreviewResolution,
     setPreviewUIScale,
     setZoomLevel,
@@ -109,6 +113,28 @@ export const Toolbar: React.FC = () => {
       >
         Snap
       </button>
+
+      <button
+        className={`px-2 py-1 rounded text-[11px] transition-colors ${
+          showAlignmentGuides ? 'bg-emerald-700/30 text-emerald-400' : 'bg-surface text-gray-500 hover:text-gray-300'
+        }`}
+        onClick={() => setShowAlignmentGuides(!showAlignmentGuides)}
+        title="Toggle alignment guides"
+      >
+        Align
+      </button>
+
+      {showAlignmentGuides && (
+        <button
+          className={`px-2 py-1 rounded text-[11px] transition-colors ${
+            snapToAlignment ? 'bg-emerald-700/30 text-emerald-400' : 'bg-surface text-gray-500 hover:text-gray-300'
+          }`}
+          onClick={() => setSnapToAlignment(!snapToAlignment)}
+          title="Toggle snap to alignment"
+        >
+          Snap Align
+        </button>
+      )}
 
       <div className="w-px h-4 bg-white/10" />
 

@@ -13,18 +13,15 @@ import {
   applyExpressionDelta,
   computePixelToGridScale,
 } from '../../utils/gridUtils';
+import { buildComponentRects, findAlignments } from '../../utils/alignmentUtils';
 import { ControlRenderer } from './ControlRenderer';
 import { SelectionOverlay } from './SelectionOverlay';
 import { GridOverlay } from './GridOverlay';
-import type { ControlConfig, GridSystem } from '../../types/controls';
+import { AlignmentGuideOverlay } from './AlignmentGuideOverlay';
+import type { ControlConfig, GridSystem, ResizeDir, GroupResizeState, ComponentRect } from '../../types/controls';
 
 // =============================================================================
-// Resize handle direction
-// =============================================================================
-type ResizeDir = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
-
-// =============================================================================
-// Drag state
+// Local drag state (not exported — single-control drag)
 // =============================================================================
 interface DragState {
   controlId: string;
@@ -38,7 +35,7 @@ interface DragState {
   offsetY: number;
 }
 
-interface ResizeState {
+interface SingleResizeState {
   controlId: string;
   dir: ResizeDir;
   startPixelX: number;
@@ -74,16 +71,22 @@ export const Canvas: React.FC = () => {
     moveControl,
     resizeControl,
     moveMultipleControls,
+    resizeMultipleControls,
     removeControl,
     setCursorGridPos,
     setZoomLevel,
     runValidation,
+    showAlignmentGuides,
+    snapToAlignment,
+    alignmentGuides,
+    setAlignmentGuides,
   } = useEditorStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasInnerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const resizeStateRef = useRef<ResizeState | null>(null);
+  const resizeStateRef = useRef<SingleResizeState | null>(null);
+  const groupResizeRef = useRef<GroupResizeState | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -141,6 +144,45 @@ export const Canvas: React.FC = () => {
       return undefined;
     },
     [activeDialog]
+  );
+
+  const computeGroupBBox = useCallback(
+    (controlIds: string[]): { x: number; y: number; w: number; h: number } => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const id of controlIds) {
+        const ctrl = getControlById(id);
+        if (!ctrl) continue;
+        const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+        minX = Math.min(minX, coords.x);
+        minY = Math.min(minY, coords.y);
+        maxX = Math.max(maxX, coords.x + coords.w);
+        maxY = Math.max(maxY, coords.y + coords.h);
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    },
+    [getControlById, gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
+  );
+
+  const buildRectsForControls = useCallback(
+    (controls: ControlConfig[]): ComponentRect[] => {
+      const rects: ComponentRect[] = [];
+      for (const ctrl of controls) {
+        const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+        rects.push({
+          id: ctrl.id,
+          x: coords.x,
+          y: coords.y,
+          w: coords.w,
+          h: coords.h,
+          cx: coords.x + coords.w / 2,
+          cy: coords.y + coords.h / 2,
+          right: coords.x + coords.w,
+          bottom: coords.y + coords.h,
+        });
+      }
+      return rects;
+    },
+    [gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
   );
 
   // ===========================================================================
@@ -360,7 +402,6 @@ export const Canvas: React.FC = () => {
         newPw = constrained.w;
         newPh = constrained.h;
 
-        // Recalculate position if width/height were clamped
         if (constrained.w !== (rs.startPixelW + (rs.dir === 'w' || rs.dir === 'nw' || rs.dir === 'sw' ? -deltaX : deltaX))) {
           if (rs.dir === 'sw' || rs.dir === 'nw' || rs.dir === 'w') {
             newPx = rs.startPixelX + rs.startPixelW - newPw;
@@ -372,11 +413,9 @@ export const Canvas: React.FC = () => {
           }
         }
 
-        // Clamp to canvas boundaries
         const clamped = clampToCanvas(newPx, newPy, newPw, newPh);
         newPx = clamped.x;
         newPy = clamped.y;
-        // Also clamp size to canvas if it would exceed
         if (clamped.x + newPw > canvasW) newPw = canvasW - clamped.x;
         if (clamped.y + newPh > canvasH) newPh = canvasH - clamped.y;
         const clamped2 = enforceMinSize(newPw, newPh);
@@ -407,6 +446,148 @@ export const Canvas: React.FC = () => {
         moveControl(activeDialogId, rs.controlId, x, y);
         resizeControl(activeDialogId, rs.controlId, w, h);
       }
+
+      if (isResizing && groupResizeRef.current) {
+        const grs = groupResizeRef.current;
+
+        const canvasMouseDeltaX = canvasMouse.x - (grs.startBBox.x + grs.offsetX);
+        const canvasMouseDeltaY = canvasMouse.y - (grs.startBBox.y + grs.offsetY);
+
+        let newBw = grs.startBBox.w;
+        let newBh = grs.startBBox.h;
+        let newBx = grs.startBBox.x;
+        let newBy = grs.startBBox.y;
+
+        const deltaX = canvasMouse.x - (grs.startBBox.x + grs.offsetX);
+        const deltaY = canvasMouse.y - (grs.startBBox.y + grs.offsetY);
+
+        switch (grs.dir) {
+          case 'se':
+            newBw = grs.startBBox.w + deltaX;
+            newBh = grs.startBBox.h + deltaY;
+            break;
+          case 'ne':
+            newBy = grs.startBBox.y + deltaY;
+            newBw = grs.startBBox.w + deltaX;
+            newBh = grs.startBBox.h - deltaY;
+            break;
+          case 'sw':
+            newBx = grs.startBBox.x + deltaX;
+            newBw = grs.startBBox.w - deltaX;
+            newBh = grs.startBBox.h + deltaY;
+            break;
+          case 'nw':
+            newBx = grs.startBBox.x + deltaX;
+            newBy = grs.startBBox.y + deltaY;
+            newBw = grs.startBBox.w - deltaX;
+            newBh = grs.startBBox.h - deltaY;
+            break;
+          case 'n':
+            newBy = grs.startBBox.y + deltaY;
+            newBh = grs.startBBox.h - deltaY;
+            break;
+          case 's':
+            newBh = grs.startBBox.h + deltaY;
+            break;
+          case 'e':
+            newBw = grs.startBBox.w + deltaX;
+            break;
+          case 'w':
+            newBx = grs.startBBox.x + deltaX;
+            newBw = grs.startBBox.w - deltaX;
+            break;
+        }
+
+        const constrainedB = enforceMinSize(newBw, newBh);
+        newBw = constrainedB.w;
+        newBh = constrainedB.h;
+
+        if (constrainedB.w !== newBw) {
+          if (grs.dir === 'sw' || grs.dir === 'nw' || grs.dir === 'w') {
+            newBx = grs.startBBox.x + grs.startBBox.w - newBw;
+          }
+        }
+        if (constrainedB.h !== newBh) {
+          if (grs.dir === 'ne' || grs.dir === 'nw' || grs.dir === 'n') {
+            newBy = grs.startBBox.y + grs.startBBox.h - newBh;
+          }
+        }
+
+        const clampedB = clampToCanvas(newBx, newBy, newBw, newBh);
+        newBx = clampedB.x;
+        newBy = clampedB.y;
+        if (clampedB.x + newBw > canvasW) newBw = canvasW - clampedB.x;
+        if (clampedB.y + newBh > canvasH) newBh = canvasH - clampedB.y;
+        const clampedB2 = enforceMinSize(newBw, newBh);
+        newBw = clampedB2.w;
+        newBh = clampedB2.h;
+
+        const scaleX = grs.startBBox.w > 0 ? newBw / grs.startBBox.w : 1;
+        const scaleY = grs.startBBox.h > 0 ? newBh / grs.startBBox.h : 1;
+        const shiftX = newBx - grs.startBBox.x;
+        const shiftY = newBy - grs.startBBox.y;
+
+        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
+        const updates: { id: string; x: number | string; y: number | string; w: number | string; h: number | string }[] = [];
+
+        for (const snap of grs.snapshots) {
+          const newPixelX = snap.pixelX + (snap.pixelX - grs.startBBox.x) * (scaleX - 1) + shiftX;
+          const newPixelY = snap.pixelY + (snap.pixelY - grs.startBBox.y) * (scaleY - 1) + shiftY;
+          const newPixelW = snap.pixelW * scaleX;
+          const newPixelH = snap.pixelH * scaleY;
+
+          const deltaGridX = (newPixelX - snap.pixelX) / gridScale.scaleX;
+          const deltaGridY = (newPixelY - snap.pixelY) / gridScale.scaleY;
+          const deltaGridW = (newPixelW - snap.pixelW) / gridScale.scaleX;
+          const deltaGridH = (newPixelH - snap.pixelH) / gridScale.scaleY;
+
+          const xExpr = applyExpressionDelta(snap.exprX, deltaGridX);
+          const yExpr = applyExpressionDelta(snap.exprY, deltaGridY);
+          const wExpr = applyExpressionDelta(snap.exprW, deltaGridW);
+          const hExpr = applyExpressionDelta(snap.exprH, deltaGridH);
+
+          let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+          let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+          let w = typeof wExpr === 'number' ? wExpr.toString() : wExpr;
+          let h = typeof hExpr === 'number' ? hExpr.toString() : hExpr;
+          if (snapToGrid) {
+            x = snapGridValue(x);
+            y = snapGridValue(y);
+            w = snapGridValue(w);
+            h = snapGridValue(h);
+          }
+          updates.push({ id: snap.id, x, y, w, h });
+        }
+
+        if (updates.length > 0) {
+          resizeMultipleControls(activeDialogId, updates);
+        }
+      }
+
+      // Alignment detection during drag or resize
+      if (showAlignmentGuides && (isDragging || isResizing)) {
+        const store = useEditorStore.getState();
+        const selectedIds = store.selectedControlIds;
+        const activeDialog = store.dialogs.find(d => d.id === activeDialogId);
+        if (activeDialog && selectedIds.length > 0) {
+          const allControls = [...activeDialog.controlsBackground, ...activeDialog.controls, ...activeDialog.objects];
+          const selectedRects: ComponentRect[] = [];
+          for (const ctrl of allControls) {
+            if (selectedIds.includes(ctrl.id)) {
+              const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+              selectedRects.push({
+                id: ctrl.id, x: coords.x, y: coords.y, w: coords.w, h: coords.h,
+                cx: coords.x + coords.w / 2, cy: coords.y + coords.h / 2,
+                right: coords.x + coords.w, bottom: coords.y + coords.h,
+              });
+            }
+          }
+          const allRects = buildRectsForControls(allControls);
+          const sz = computeSafeZone(canvasW, canvasH, previewUIScale);
+          const guides = findAlignments(selectedRects, allRects, canvasW, canvasH, sz);
+          setAlignmentGuides(guides);
+        }
+      }
     };
 
     const handleMouseUp = () => {
@@ -415,9 +596,11 @@ export const Canvas: React.FC = () => {
       }
       dragStateRef.current = null;
       resizeStateRef.current = null;
+      groupResizeRef.current = null;
       dragOriginRef.current = null;
       setIsDragging(false);
       setIsResizing(false);
+      setAlignmentGuides([]);
       runValidation();
     };
 
@@ -427,7 +610,7 @@ export const Canvas: React.FC = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [pendingDrag, isDragging, isResizing, activeDialogId, scale, snapToGrid, moveControl, resizeControl, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH]);
+  }, [pendingDrag, isDragging, isResizing, activeDialogId, scale, snapToGrid, moveControl, resizeControl, resizeMultipleControls, showAlignmentGuides, snapToAlignment, setAlignmentGuides, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, buildRectsForControls]);
 
   // ===========================================================================
   // Keyboard: Delete, Escape, Ctrl+C, Ctrl+V, Arrow nudging
@@ -620,11 +803,46 @@ export const Canvas: React.FC = () => {
       e.stopPropagation();
       e.preventDefault();
 
-      const ctrl = getControlById(controlId);
-      if (!ctrl) return;
+      const store = useEditorStore.getState();
+      const selectedIds = store.selectedControlIds;
 
       const canvasMouse = getCanvasMouse(e);
       if (!canvasMouse) return;
+
+      if (selectedIds.length > 1 && selectedIds.includes(controlId)) {
+        const bbox = computeGroupBBox(selectedIds);
+        const snapshots: GroupResizeState['snapshots'] = [];
+        for (const id of selectedIds) {
+          const ctrl = getControlById(id);
+          if (!ctrl) continue;
+          const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+          snapshots.push({
+            id,
+            pixelX: coords.x,
+            pixelY: coords.y,
+            pixelW: coords.w,
+            pixelH: coords.h,
+            exprX: ctrl.x,
+            exprY: ctrl.y,
+            exprW: ctrl.w,
+            exprH: ctrl.h,
+          });
+        }
+        groupResizeRef.current = {
+          dir,
+          startBBox: bbox,
+          snapshots,
+          offsetX: canvasMouse.x - bbox.x,
+          offsetY: canvasMouse.y - bbox.y,
+          canvasW,
+          canvasH,
+        };
+        setIsResizing(true);
+        return;
+      }
+
+      const ctrl = getControlById(controlId);
+      if (!ctrl) return;
 
       const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
 
@@ -644,7 +862,22 @@ export const Canvas: React.FC = () => {
       };
       setIsResizing(true);
     },
-    [getControlById, getCanvasMouse, gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
+    [getControlById, getCanvasMouse, gridSystem, gridVariant, canvasW, canvasH, previewUIScale, computeGroupBBox]
+  );
+
+  // ===========================================================================
+  // Ctrl+Scroll / Alt+Scroll zoom
+  // ===========================================================================
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!e.ctrlKey && !e.altKey) return;
+      e.preventDefault();
+      const store = useEditorStore.getState();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      const newZoom = Math.max(0.1, Math.min(3.0, store.zoomLevel + delta));
+      store.setZoomLevel(Math.round(newZoom * 100) / 100);
+    },
+    []
   );
 
   // ===========================================================================
@@ -676,6 +909,7 @@ export const Canvas: React.FC = () => {
         ref={canvasInnerRef}
         data-canvas="true"
         className="relative mx-auto shadow-2xl"
+        onWheel={handleWheel}
         style={{
           width: canvasW * scale,
           height: canvasH * scale,
@@ -722,6 +956,9 @@ export const Canvas: React.FC = () => {
             onMouseDownCapture={(e) => handleControlMouseDown(ctrl.id, e)}
           />
         ))}
+
+        {/* Alignment guide overlay */}
+        <AlignmentGuideOverlay guides={alignmentGuides} scale={scale} />
 
         {/* Selection overlay with resize handles */}
         <SelectionOverlay

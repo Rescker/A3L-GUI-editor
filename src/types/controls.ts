@@ -395,6 +395,56 @@ export interface GridVariant {
 }
 
 // =============================================================================
+// Alignment & Smart Snapping
+// =============================================================================
+
+export type ResizeDir = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
+
+export interface AlignmentGuide {
+  id: string;
+  type: 'vertical' | 'horizontal';
+  position: number;
+  start: number;
+  end: number;
+  source: 'edge' | 'center' | 'canvas-edge' | 'canvas-center' | 'safezone-edge';
+  label?: string;
+}
+
+export interface ComponentRect {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+  right: number;
+  bottom: number;
+}
+
+export interface GroupResizeSnapshot {
+  id: string;
+  pixelX: number;
+  pixelY: number;
+  pixelW: number;
+  pixelH: number;
+  exprX: string | number;
+  exprY: string | number;
+  exprW: string | number;
+  exprH: string | number;
+}
+
+export interface GroupResizeState {
+  dir: ResizeDir;
+  startBBox: { x: number; y: number; w: number; h: number };
+  snapshots: GroupResizeSnapshot[];
+  offsetX: number;
+  offsetY: number;
+  canvasW: number;
+  canvasH: number;
+}
+
+// =============================================================================
 // Validation
 // =============================================================================
 
