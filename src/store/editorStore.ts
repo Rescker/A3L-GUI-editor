@@ -140,7 +140,15 @@ function updateControlInDialog(dialog: DialogConfig, controlId: string, patch: P
     const idx = newDialog[zone].findIndex(c => c.id === controlId);
     if (idx >= 0) {
       const updated = [...newDialog[zone]];
-      updated[idx] = { ...updated[idx], ...patch };
+      const existing = updated[idx];
+      const merged = { ...existing, ...patch };
+      if (existing.parentClass) {
+        const newKeys = Object.keys(patch);
+        const prev = existing.explicitProperties ?? [];
+        const next = [...new Set([...prev, ...newKeys])];
+        merged.explicitProperties = next;
+      }
+      updated[idx] = merged;
       newDialog[zone] = updated;
       return newDialog;
     }

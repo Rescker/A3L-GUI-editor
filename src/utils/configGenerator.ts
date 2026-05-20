@@ -655,7 +655,7 @@ function getTypeConstant(type: number): string {
 }
 
 function escapeString(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return s.replace(/"/g, '\\"');
 }
 
 function arraysEqual(a: number[], b: number[]): boolean {

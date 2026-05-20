@@ -40,7 +40,6 @@ export const AppearanceSection: React.FC = () => {
       const dataUrl = reader.result as string;
       updateControl(activeDialogId, ctrl.id, {
         imageDataUrl: dataUrl,
-        text: file.name,
       });
     };
     reader.readAsDataURL(file);
@@ -284,6 +283,18 @@ export const AppearanceSection: React.FC = () => {
                 />
               </div>
             )}
+
+            <Field label="Texture Path (Arma)">
+              <input
+                className="w-full bg-surface-light border border-white/10 rounded px-2 py-1 text-xs text-white font-mono"
+                value={ctrl.text}
+                placeholder="e.g. \A3\ui_f\data\gui\some_texture_ca.paa"
+                onChange={(e) => updateControl(activeDialogId, ctrl.id, { text: e.target.value })}
+              />
+              <p className="text-[9px] text-yellow-500 mt-1">
+                Path to .paa or .jpg texture in the Arma mission/engine filesystem.
+              </p>
+            </Field>
 
             <Field label="Dimensions (Power of Two)">
               <div className="flex gap-1">
