@@ -5,7 +5,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useEditorStore } from '../../store/editorStore';
-import type { DialogConfig, ControlConfig, ControlZone, UIContainerType } from '../../types/controls';
+import type { ControlConfig, ControlZone, UIContainerType } from '../../types/controls';
 import { CONTROL_TYPES } from '../../data/controlDefaults';
 import { getControlTypeInfo } from '../../data/controlDefaults';
 
@@ -24,6 +24,7 @@ export const HierarchyPanel: React.FC = () => {
     updateControl,
     addDialog,
     addControlFromTemplate,
+    copyControls,
     moveControlUp,
     moveControlDown,
     swapControlOrder,
@@ -35,7 +36,6 @@ export const HierarchyPanel: React.FC = () => {
     | { type: 'empty' };
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextTarget } | null>(null);
-  const [expandedDialogs, setExpandedDialogs] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -64,14 +64,6 @@ export const HierarchyPanel: React.FC = () => {
   }, [activeDialogId, swapControlOrder]);
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
-
-  const toggleDialog = useCallback((id: string) => {
-    setExpandedDialogs(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
 
   const handleRightClick = useCallback((e: React.MouseEvent, target: ContextTarget) => {
     e.preventDefault();
@@ -176,73 +168,46 @@ export const HierarchyPanel: React.FC = () => {
   return (
     <div className="w-60 bg-surface flex flex-col border-r border-white/5 h-full">
       <div className="p-2 border-b border-white/5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Hierarchy</span>
-          <div className="flex gap-1">
-            <button
-              className="text-[10px] px-1.5 py-0.5 bg-accent-blue hover:bg-accent-blue/80 rounded text-white"
-              onClick={() => addDialog('dialog')}
-              title="New Dialog"
-            >
-              +D
-            </button>
-            <button
-              className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-white"
-              onClick={() => addDialog('display')}
-              title="New Display"
-            >
-              +P
-            </button>
-            <button
-              className="text-[10px] px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 rounded text-white"
-              onClick={() => addDialog('hud')}
-              title="New HUD"
-            >
-              +H
-            </button>
-          </div>
-        </div>
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Hierarchy</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {dialogs.length === 0 ? (
+        {!activeDialog ? (
           <div
             className="p-4 text-center text-xs text-gray-500"
             onContextMenu={(e) => handleRightClick(e, { type: 'empty' })}
           >
-            No dialogs yet. Click +D/+P/+H to create one.
+            No dialog open. Create one via the + tab above.
           </div>
         ) : (
-          dialogs.map((dialog) => {
-            const isExpanded = expandedDialogs.has(dialog.id);
-            const isActive = dialog.id === activeDialogId;
-            return (
-              <div key={dialog.id}>
-                <div
-                  className={`flex items-center gap-1 px-2 py-1.5 cursor-pointer hover:bg-white/5 text-xs ${
-                    isActive ? 'bg-accent-blue/20 border-l-2 border-accent-cyan' : 'border-l-2 border-transparent'
-                  }`}
-                  onClick={() => {
-                    setActiveDialog(dialog.id);
-                    toggleDialog(dialog.id);
-                  }}
-                  onContextMenu={(e) => handleRightClick(e, { type: 'dialog', dialogId: dialog.id })}
-                >
-                  <span className="text-xs">{isExpanded ? '▾' : '▸'}</span>
-                  {containerTypeBadge(dialog.containerType)}
-                  <span className="truncate flex-1 font-medium ml-1">{dialog.className}</span>
-                  <span className="text-[10px] text-gray-500">IDD:{dialog.idd}</span>
-                </div>
-                {isExpanded && (
-                  <div className="ml-1">
-                    {renderZone(dialog.controlsBackground, 'controlsBackground', dialog.id)}
-                    {renderZone(dialog.controls, 'controls', dialog.id)}
-                    {renderZone(dialog.objects, 'objects', dialog.id)}
-                  </div>
-                )}
+          <div>
+            {/* Active dialog header */}
+            <div
+              className="flex items-center gap-1 px-2 py-1.5 text-xs border-b border-white/5 bg-surface-light"
+              onContextMenu={(e) => handleRightClick(e, { type: 'dialog', dialogId: activeDialog.id })}
+            >
+              {containerTypeBadge(activeDialog.containerType)}
+              <span className="truncate flex-1 font-medium">{activeDialog.className}</span>
+              <span className="text-[10px] text-gray-500">IDD:{activeDialog.idd}</span>
+            </div>
+
+            {/* Zones */}
+            {renderZone(activeDialog.controlsBackground, 'controlsBackground', activeDialog.id)}
+            {renderZone(activeDialog.controls, 'controls', activeDialog.id)}
+            {renderZone(activeDialog.objects, 'objects', activeDialog.id)}
+
+            {/* Show empty state when dialog has no controls */}
+            {activeDialog.controlsBackground.length === 0 &&
+              activeDialog.controls.length === 0 &&
+              activeDialog.objects.length === 0 && (
+              <div
+                className="p-4 text-center text-xs text-gray-500"
+                onContextMenu={(e) => handleRightClick(e, { type: 'dialog', dialogId: activeDialog.id })}
+              >
+                Right-click here or on the header to add controls.
               </div>
-            );
-          })
+            )}
+          </div>
         )}
       </div>
 
@@ -283,6 +248,40 @@ export const HierarchyPanel: React.FC = () => {
                       }}
                     >
                       ✂ Duplicate
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        const store = useEditorStore.getState();
+                        const dialog = store.dialogs.find(d => d.id === t.dialogId);
+                        if (!dialog) { setContextMenu(null); return; }
+                        const found = findControlWithZone(dialog, t.controlId);
+                        if (found) {
+                          copyControls([found.control], found.zone);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      📋 Copy
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        const store = useEditorStore.getState();
+                        if (store.clipboard.length === 0) { setContextMenu(null); return; }
+                        const zone = store.clipboardSourceZone ?? 'controls';
+                        for (const copy of store.clipboard) {
+                          const clone = structuredClone(copy);
+                          const xExpr = offsetExpression(copy.x, 1);
+                          const yExpr = offsetExpression(copy.y, 1);
+                          clone.x = xExpr;
+                          clone.y = yExpr;
+                          addControlFromTemplate(t.dialogId, clone, zone);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      📄 Paste
                     </button>
                     <div className="border-t border-white/5 my-1" />
                     <button
@@ -361,6 +360,26 @@ export const HierarchyPanel: React.FC = () => {
                     >
                       + Add Button
                     </button>
+                    <div className="border-t border-white/5 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        const store = useEditorStore.getState();
+                        if (store.clipboard.length === 0) { setContextMenu(null); return; }
+                        const zone = store.clipboardSourceZone ?? 'controls';
+                        for (const copy of store.clipboard) {
+                          const clone = structuredClone(copy);
+                          const xExpr = offsetExpression(copy.x, 1);
+                          const yExpr = offsetExpression(copy.y, 1);
+                          clone.x = xExpr;
+                          clone.y = yExpr;
+                          addControlFromTemplate(t.dialogId, clone, zone);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      📄 Paste
+                    </button>
                     <div className="border-t border-white/10 my-1" />
                     <button
                       className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"
@@ -394,6 +413,27 @@ export const HierarchyPanel: React.FC = () => {
                       onClick={() => { addDialog('hud'); setContextMenu(null); }}
                     >
                       + New HUD
+                    </button>
+                    <div className="border-t border-white/5 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        const store = useEditorStore.getState();
+                        const targetDialogId = store.activeDialogId;
+                        if (!targetDialogId || store.clipboard.length === 0) { setContextMenu(null); return; }
+                        const zone = store.clipboardSourceZone ?? 'controls';
+                        for (const copy of store.clipboard) {
+                          const clone = structuredClone(copy);
+                          const xExpr = offsetExpression(copy.x, 1);
+                          const yExpr = offsetExpression(copy.y, 1);
+                          clone.x = xExpr;
+                          clone.y = yExpr;
+                          addControlFromTemplate(targetDialogId, clone, zone);
+                        }
+                        setContextMenu(null);
+                      }}
+                    >
+                      📄 Paste
                     </button>
                   </>
                 )}

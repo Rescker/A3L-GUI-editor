@@ -18,7 +18,7 @@ import { ControlRenderer } from './ControlRenderer';
 import { SelectionOverlay } from './SelectionOverlay';
 import { GridOverlay } from './GridOverlay';
 import { AlignmentGuideOverlay } from './AlignmentGuideOverlay';
-import type { ControlConfig, GridSystem, ResizeDir, GroupResizeState, ComponentRect } from '../../types/controls';
+import type { ControlConfig, GridSystem, ResizeDir, GroupResizeState, ComponentRect, ControlZone } from '../../types/controls';
 
 // =============================================================================
 // Local drag state (not exported — single-control drag)
@@ -303,9 +303,8 @@ export const Canvas: React.FC = () => {
   );
 
   // ===========================================================================
-  // Clipboard (Ctrl+C / Ctrl+V) via useRef to avoid stale closures
+  // Clipboard (Ctrl+C / Ctrl+V) — stored in global Zustand store
   // ===========================================================================
-  const clipboardRef = useRef<ControlConfig[]>([]);
 
   // ===========================================================================
   // Document-level mousemove — shared by drag, resize, and pan
@@ -760,22 +759,31 @@ export const Canvas: React.FC = () => {
           const ctrl = getControlById(id);
           if (ctrl) copies.push(structuredClone(ctrl));
         }
-        clipboardRef.current = copies;
+        // Find which zone the first selected control is in
+        const activeDlg = store.dialogs.find(d => d.id === dialogId);
+        let sourceZone: ControlZone = 'controls';
+        if (activeDlg && copies.length > 0) {
+          const firstId = copies[0].id;
+          sourceZone = findControlZone(activeDlg, firstId) ?? 'controls';
+        }
+        store.copyControls(copies, sourceZone);
         return;
       }
 
-      if (e.ctrlKey && e.key === 'v' && clipboardRef.current.length > 0 && dialogId) {
+      if (e.ctrlKey && e.key === 'v' && dialogId) {
+        const store = useEditorStore.getState();
+        if (store.clipboard.length === 0) return;
         if (isInput) return;
         e.preventDefault();
-        const store = useEditorStore.getState();
-        for (const copy of clipboardRef.current) {
+        for (const copy of store.clipboard) {
           const clone = structuredClone(copy);
           const coords = controlToCanvasCoords(copy, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
           const offsetPx = Math.max(20, coords.w * 0.1);
           const gridExpr = pixelToCurrentGrid(coords.x + offsetPx, coords.y + offsetPx, coords.w, coords.h);
           clone.x = gridExpr.x;
           clone.y = gridExpr.y;
-          store.addControlFromTemplate(dialogId, clone, 'controls');
+          const zone = store.clipboardSourceZone ?? 'controls';
+          store.addControlFromTemplate(dialogId, clone, zone);
         }
         return;
       }
@@ -1128,6 +1136,16 @@ function getVisibleControls(
   }
 
   return [...dialog.controlsBackground, ...dialog.controls, ...dialog.objects];
+}
+
+function findControlZone(
+  dialog: import('../../types/controls').DialogConfig,
+  controlId: string
+): import('../../types/controls').ControlZone | null {
+  for (const zone of ['controlsBackground', 'controls', 'objects'] as const) {
+    if (dialog[zone].some(c => c.id === controlId)) return zone;
+  }
+  return null;
 }
 
 // =============================================================================

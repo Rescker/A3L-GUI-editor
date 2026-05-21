@@ -265,6 +265,8 @@ interface EditorStore {
   showAlignmentGuides: boolean;
   snapToAlignment: boolean;
   alignmentGuides: AlignmentGuide[];
+  clipboard: ControlConfig[];
+  clipboardSourceZone: ControlZone | null;
 
   // Actions
   addDialog: (type: UIContainerType) => void;
@@ -311,6 +313,8 @@ interface EditorStore {
   swapControlOrder: (dialogId: string, controlIdA: string, controlIdB: string) => void;
   exportProject: () => string;
   importProject: (json: string) => boolean;
+  copyControls: (controls: ControlConfig[], sourceZone: ControlZone) => void;
+  clearClipboard: () => void;
 }
 
 // =============================================================================
@@ -345,6 +349,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   showAlignmentGuides: true,
   snapToAlignment: true,
   alignmentGuides: [],
+  clipboard: [],
+  clipboardSourceZone: null,
 
   // === Dialog Actions ===
 
@@ -784,6 +790,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       validationIssues: validateAll(project.dialogs),
     });
     return true;
+  },
+
+  copyControls: (controls, sourceZone) => {
+    set({ clipboard: structuredClone(controls), clipboardSourceZone: sourceZone });
+  },
+
+  clearClipboard: () => {
+    set({ clipboard: [], clipboardSourceZone: null });
   },
 
   setCursorGridPos: (x, y) => set({ cursorGridX: x, cursorGridY: y }),

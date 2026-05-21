@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { Toolbar } from './components/Toolbar/Toolbar';
+import { TabBar } from './components/TabBar/TabBar';
 import { Canvas } from './components/Canvas/Canvas';
 import { HierarchyPanel } from './components/HierarchyPanel/HierarchyPanel';
 import { PropertiesPanel } from './components/PropertiesPanel/PropertiesPanel';
@@ -23,6 +24,9 @@ const App: React.FC = () => {
     <div className="h-screen w-screen flex flex-col bg-surface overflow-hidden">
       {/* Toolbar */}
       <Toolbar />
+
+      {/* Project Tabs (Photoshop-style) */}
+      <TabBar />
 
       {/* Main content: three-panel layout */}
       <div className="flex-1 flex overflow-hidden">
