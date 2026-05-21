@@ -424,6 +424,10 @@ export const Canvas: React.FC = () => {
         const dy = canvasMouse.y - dragOriginRef.current.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist >= DRAG_THRESHOLD) {
+          const ds = dragStateRef.current;
+          ds.offsetX = canvasMouse.x - ds.startPixelX;
+          ds.offsetY = canvasMouse.y - ds.startPixelY;
+          dragOriginRef.current = { x: canvasMouse.x, y: canvasMouse.y };
           setPendingDrag(false);
           setIsDragging(true);
         } else {
@@ -865,13 +869,19 @@ export const Canvas: React.FC = () => {
         if (store.clipboard.length === 0) return;
         if (isInput) return;
         e.preventDefault();
+        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
         for (const copy of store.clipboard) {
           const clone = structuredClone(copy);
           const coords = controlToCanvasCoords(copy, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
           const offsetPx = Math.max(20, coords.w * 0.1);
-          const gridExpr = pixelToCurrentGrid(coords.x + offsetPx, coords.y + offsetPx, coords.w, coords.h);
-          clone.x = gridExpr.x;
-          clone.y = gridExpr.y;
+          const deltaGridX = offsetPx / gridScale.scaleX;
+          const deltaGridY = offsetPx / gridScale.scaleY;
+          const xExpr = applyExpressionDelta(copy.x, deltaGridX);
+          const yExpr = applyExpressionDelta(copy.y, deltaGridY);
+          const nextX = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
+          const nextY = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+          clone.x = snapToGrid ? snapGridValue(nextX) : nextX;
+          clone.y = snapToGrid ? snapGridValue(nextY) : nextY;
           const zone = store.clipboardSourceZone ?? 'controls';
           store.addControlFromTemplate(dialogId, clone, zone);
         }
@@ -977,10 +987,12 @@ export const Canvas: React.FC = () => {
       const ctrl = getControlById(controlId);
       if (!ctrl) return;
 
-      const canvasMouse = getCanvasMouse(e);
-      if (!canvasMouse) return;
-
       const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+      const target = e.currentTarget as HTMLElement;
+      const rect = target.getBoundingClientRect();
+      const offsetX = (e.clientX - rect.left) / zoom;
+      const offsetY = (e.clientY - rect.top) / zoom;
+      const canvasMouse = { x: coords.x + offsetX, y: coords.y + offsetY };
 
       dragStateRef.current = {
         controlId,
@@ -990,13 +1002,13 @@ export const Canvas: React.FC = () => {
         startPixelH: coords.h,
         startExprX: ctrl.x,
         startExprY: ctrl.y,
-        offsetX: canvasMouse.x - coords.x,
-        offsetY: canvasMouse.y - coords.y,
+        offsetX,
+        offsetY,
       };
       dragOriginRef.current = { x: canvasMouse.x, y: canvasMouse.y };
       setPendingDrag(true);
     },
-    [selectControl, getControlById, getCanvasMouse, gridSystem, gridVariant, canvasW, canvasH, previewUIScale]
+    [selectControl, getControlById, gridSystem, gridVariant, canvasW, canvasH, previewUIScale, zoom]
   );
 
   // ===========================================================================
