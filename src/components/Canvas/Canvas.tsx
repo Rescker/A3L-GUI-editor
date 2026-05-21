@@ -963,7 +963,16 @@ export const Canvas: React.FC = () => {
       if (e.button !== 0) return;
 
       e.stopPropagation();
-      selectControl(controlId, e.ctrlKey || e.metaKey);
+
+      // If clicking an already-selected control with others selected,
+      // keep multi-selection intact — drag all together without needing Ctrl.
+      const store = useEditorStore.getState();
+      const isAlreadySelected = store.selectedControlIds.includes(controlId);
+      const hasMultipleSelected = store.selectedControlIds.length > 1;
+
+      if (!(isAlreadySelected && hasMultipleSelected)) {
+        selectControl(controlId, e.ctrlKey || e.metaKey);
+      }
 
       const ctrl = getControlById(controlId);
       if (!ctrl) return;
