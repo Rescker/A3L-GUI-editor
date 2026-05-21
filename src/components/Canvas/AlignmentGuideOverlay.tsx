@@ -8,20 +8,19 @@ import type { AlignmentGuide } from '../../types/controls';
 
 interface Props {
   guides: AlignmentGuide[];
-  scale: number;
 }
 
-export const AlignmentGuideOverlay: React.FC<Props> = ({ guides, scale }) => {
+export const AlignmentGuideOverlay: React.FC<Props> = ({ guides }) => {
   if (guides.length === 0) return null;
 
   return (
     <>
       {guides.map((guide) => {
-        const position = guide.position * scale;
+        const position = guide.position;
 
         if (guide.type === 'vertical') {
-          const top = guide.start * scale;
-          const height = (guide.end - guide.start) * scale;
+          const top = guide.start;
+          const height = guide.end - guide.start;
           const isCenter = guide.source === 'center' || guide.source === 'canvas-center';
           return (
             <div
@@ -49,8 +48,8 @@ export const AlignmentGuideOverlay: React.FC<Props> = ({ guides, scale }) => {
         }
 
         // Horizontal guide
-        const left = guide.start * scale;
-        const width = (guide.end - guide.start) * scale;
+        const left = guide.start;
+        const width = guide.end - guide.start;
         const isCenter = guide.source === 'center' || guide.source === 'canvas-center';
         return (
           <div

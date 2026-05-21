@@ -28,8 +28,6 @@ interface Props {
   gridVariant: string;
   canvasW: number;
   canvasH: number;
-  scale: number;
-  safeZone: { x: number; y: number; w: number; h: number };
   uiScale: string;
   onHandleMouseDown: (controlId: string, dir: ResizeDir, e: React.MouseEvent) => void;
 }
@@ -41,8 +39,6 @@ export const SelectionOverlay: React.FC<Props> = ({
   gridVariant,
   canvasW,
   canvasH,
-  scale,
-  safeZone,
   uiScale,
   onHandleMouseDown,
 }) => {
@@ -56,7 +52,6 @@ export const SelectionOverlay: React.FC<Props> = ({
       {groupBBox && (
         <GroupSelectionOverlay
           bbox={groupBBox}
-          scale={scale}
           onHandleMouseDown={onHandleMouseDown}
           primaryControlId={selectedIds[0]}
         />
@@ -64,10 +59,10 @@ export const SelectionOverlay: React.FC<Props> = ({
 
       {selectedControls.map((ctrl) => {
         const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, uiScale);
-        const x = coords.x * scale;
-        const y = coords.y * scale;
-        const w = coords.w * scale;
-        const h = coords.h * scale;
+        const x = coords.x;
+        const y = coords.y;
+        const w = coords.w;
+        const h = coords.h;
 
         return (
           <div key={`sel-${ctrl.id}`}>
@@ -94,7 +89,6 @@ export const SelectionOverlay: React.FC<Props> = ({
                 y={y}
                 w={w}
                 h={h}
-                scale={scale}
                 onHandleMouseDown={onHandleMouseDown}
               />
             )}
@@ -110,19 +104,17 @@ export const SelectionOverlay: React.FC<Props> = ({
 // =============================================================================
 function GroupSelectionOverlay({
   bbox,
-  scale,
   onHandleMouseDown,
   primaryControlId,
 }: {
   bbox: { x: number; y: number; w: number; h: number };
-  scale: number;
   onHandleMouseDown: (controlId: string, dir: ResizeDir, e: React.MouseEvent) => void;
   primaryControlId: string;
 }) {
-  const x = bbox.x * scale;
-  const y = bbox.y * scale;
-  const w = bbox.w * scale;
-  const h = bbox.h * scale;
+  const x = bbox.x;
+  const y = bbox.y;
+  const w = bbox.w;
+  const h = bbox.h;
   const handleSize = 7;
 
   return (
@@ -228,7 +220,6 @@ function SingleSelectionHandles({
   y,
   w,
   h,
-  scale,
   onHandleMouseDown,
 }: {
   ctrl: ControlConfig;
@@ -236,7 +227,6 @@ function SingleSelectionHandles({
   y: number;
   w: number;
   h: number;
-  scale: number;
   onHandleMouseDown: (controlId: string, dir: ResizeDir, e: React.MouseEvent) => void;
 }) {
   const handleSize = 6;

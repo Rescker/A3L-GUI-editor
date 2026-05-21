@@ -3,7 +3,7 @@
 // Renders a single control on the canvas. No drag/resize state.
 // =============================================================================
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import type { ControlConfig, GridSystem } from '../../types/controls';
 import { controlToCanvasCoords } from '../../utils/gridUtils';
 import { hasStyleFlag, resolveColorValue } from '../../utils/styleUtils';
@@ -16,8 +16,6 @@ interface Props {
   gridVariant: string;
   canvasW: number;
   canvasH: number;
-  scale: number;
-  safeZone: { x: number; y: number; w: number; h: number };
   uiScale: string;
   onMouseDownCapture: (e: React.MouseEvent) => void;
 }
@@ -29,8 +27,6 @@ export const ControlRenderer: React.FC<Props> = ({
   gridVariant,
   canvasW,
   canvasH,
-  scale,
-  safeZone,
   uiScale,
   onMouseDownCapture,
 }) => {
@@ -38,10 +34,10 @@ export const ControlRenderer: React.FC<Props> = ({
 
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: coords.x * scale,
-    top: coords.y * scale,
-    width: coords.w * scale,
-    height: coords.h * scale,
+    left: coords.x,
+    top: coords.y,
+    width: coords.w,
+    height: coords.h,
     border: isSelected ? '2px solid #e94560' : '1px solid rgba(255,255,255,0.2)',
     boxSizing: 'border-box',
     cursor: 'grab',
@@ -53,7 +49,6 @@ export const ControlRenderer: React.FC<Props> = ({
   // Text color
   const textColor = `rgba(${control.colorText.map(v => Math.round(v * 255)).join(',')})`;
   const bgColor = `rgba(${resolveColorValue(control.colorBackground[0]) * 255 >> 0},${resolveColorValue(control.colorBackground[1]) * 255 >> 0},${resolveColorValue(control.colorBackground[2]) * 255 >> 0},${resolveColorValue(control.colorBackground[3])})`;
-  const fontSize = (typeof control.sizeEx === 'number' ? control.sizeEx : 4) * scale * 3;
 
   // Configure rendering based on control type
   const renderContent = () => {
@@ -159,7 +154,7 @@ export const ControlRenderer: React.FC<Props> = ({
       return (
         <div className="w-full h-full" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <div className="p-1 text-xs" style={{ color: textColor }}>
-            {['Item 1', 'Item 2', 'Item 3'].slice(0, Math.max(1, Math.floor(coords.h * scale / 20))).map((item, i) => (
+            {['Item 1', 'Item 2', 'Item 3'].slice(0, Math.max(1, Math.floor(coords.h / 20))).map((item, i) => (
               <div key={i} className="px-1 py-0.5" style={i === 0 ? { backgroundColor: 'rgba(233,69,96,0.3)' } : {}}>{item}</div>
             ))}
           </div>

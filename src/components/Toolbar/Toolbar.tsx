@@ -32,6 +32,7 @@ export const Toolbar: React.FC = () => {
     setPreviewResolution,
     setPreviewUIScale,
     setZoomLevel,
+    requestCanvasFit,
     setFullscreenIntent,
     setImportModalOpen,
     setExportModalOpen,
@@ -189,14 +190,14 @@ export const Toolbar: React.FC = () => {
       </span>
       <button
         className="px-1.5 py-0.5 bg-surface rounded text-gray-400 hover:text-white text-[11px]"
-        onClick={() => setZoomLevel(Math.min(3, zoomLevel + 0.1))}
+        onClick={() => setZoomLevel(Math.min(10, zoomLevel + 0.1))}
         title="Zoom in"
       >
         +
       </button>
       <button
         className="px-1.5 py-0.5 bg-surface rounded text-gray-400 hover:text-white text-[11px]"
-        onClick={() => setZoomLevel(0.5)}
+        onClick={requestCanvasFit}
         title="Reset zoom"
       >
         Fit

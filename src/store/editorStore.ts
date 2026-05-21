@@ -250,6 +250,9 @@ interface EditorStore {
   previewResolution: { w: number; h: number };
   previewUIScale: string;
   zoomLevel: number;
+  canvasPanX: number;
+  canvasPanY: number;
+  canvasFitRequestId: number;
   isCanvasFullscreen: boolean;
   fullscreenIntent: boolean;
   cursorGridX: string;
@@ -291,6 +294,9 @@ interface EditorStore {
   setPreviewResolution: (res: { w: number; h: number }) => void;
   setPreviewUIScale: (scale: string) => void;
   setZoomLevel: (zoom: number) => void;
+  setCanvasPan: (x: number, y: number) => void;
+  setCanvasView: (zoom: number, x: number, y: number) => void;
+  requestCanvasFit: () => void;
   setCanvasFullscreen: (isFullscreen: boolean) => void;
   setFullscreenIntent: (intent: boolean) => void;
   setImportModalOpen: (open: boolean) => void;
@@ -334,6 +340,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   previewResolution: { w: 1920, h: 1080 },
   previewUIScale: 'normal',
   zoomLevel: 0.5,
+  canvasPanX: 0,
+  canvasPanY: 0,
+  canvasFitRequestId: 0,
   isCanvasFullscreen: false,
   fullscreenIntent: false,
   cursorGridX: '0',
@@ -646,6 +655,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPreviewResolution: (res) => set({ previewResolution: res }),
   setPreviewUIScale: (scale) => set({ previewUIScale: scale }),
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
+  setCanvasPan: (x, y) => set({ canvasPanX: x, canvasPanY: y }),
+  setCanvasView: (zoom, x, y) => set({ zoomLevel: zoom, canvasPanX: x, canvasPanY: y }),
+  requestCanvasFit: () => set(state => ({ canvasFitRequestId: state.canvasFitRequestId + 1 })),
   setCanvasFullscreen: (isFullscreen) => set({ isCanvasFullscreen: isFullscreen }),
   setFullscreenIntent: (intent) => set({ fullscreenIntent: intent }),
   setImportModalOpen: (open) => set({ importModalOpen: open }),

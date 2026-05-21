@@ -4,7 +4,7 @@
 // outside individual control divs for smooth, uninterrupted interaction.
 // =============================================================================
 
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useEditorStore } from '../../store/editorStore';
 import {
   controlToCanvasCoords,
@@ -51,8 +51,8 @@ interface SingleResizeState {
 }
 
 interface PanState {
-  startScrollX: number;
-  startScrollY: number;
+  startPanX: number;
+  startPanY: number;
   startMouseX: number;
   startMouseY: number;
 }
@@ -72,6 +72,9 @@ export const Canvas: React.FC = () => {
     previewResolution,
     previewUIScale,
     zoomLevel,
+    canvasPanX,
+    canvasPanY,
+    canvasFitRequestId,
     isCanvasFullscreen,
     editingControlId,
     selectControl,
@@ -84,6 +87,8 @@ export const Canvas: React.FC = () => {
     addControlFromTemplate,
     setCursorGridPos,
     setZoomLevel,
+    setCanvasPan,
+    setCanvasView,
     runValidation,
     showAlignmentGuides,
     snapToAlignment,
@@ -106,15 +111,104 @@ export const Canvas: React.FC = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [pendingDrag, setPendingDrag] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const panRef = useRef({ x: canvasPanX, y: canvasPanY });
+
+  useEffect(() => {
+    panRef.current = { x: canvasPanX, y: canvasPanY };
+  }, [canvasPanX, canvasPanY]);
 
   const DRAG_THRESHOLD = 4;
+  const ZOOM_MIN = 0.1;
+  const ZOOM_MAX = 10;
+  const ZOOM_STEP = 0.05;
+  const FIT_PADDING = 1.84;
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
 
   const canvasW = previewResolution.w;
   const canvasH = previewResolution.h;
-  const scale = zoomLevel;
-  const safeZone = computeSafeZone(canvasW, canvasH, previewUIScale);
+  const zoom = zoomLevel;
+  const safeZone = useMemo(
+    () => computeSafeZone(canvasW, canvasH, previewUIScale),
+    [canvasW, canvasH, previewUIScale]
+  );
+
+  const clampZoom = useCallback(
+    (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)),
+    [ZOOM_MAX, ZOOM_MIN]
+  );
+
+  const roundZoom = useCallback((value: number) => Math.round(value * 100) / 100, []);
+
+  const getViewportSize = useCallback(() => {
+    const fullscreenEl = fullscreenRef.current;
+    const isFullscreen = fullscreenEl && document.fullscreenElement === fullscreenEl;
+    const target = isFullscreen ? fullscreenEl : containerRef.current;
+    if (!target) return null;
+    const rect = target.getBoundingClientRect();
+    const width = rect.width > 0 ? rect.width : target.clientWidth;
+    const height = rect.height > 0 ? rect.height : target.clientHeight;
+    if (width <= 0 || height <= 0) return null;
+    return { width, height };
+  }, []);
+
+  const getCenteredPan = useCallback(
+    (targetZoom: number, pointX: number, pointY: number) => {
+      const viewport = getViewportSize();
+      if (!viewport) return null;
+      return {
+        x: viewport.width / 2 - pointX * targetZoom,
+        y: viewport.height / 2 - pointY * targetZoom,
+      };
+    },
+    [getViewportSize]
+  );
+
+  const centerCanvasPoint = useCallback(
+    (targetZoom: number, pointX: number, pointY: number) => {
+      const pan = getCenteredPan(targetZoom, pointX, pointY);
+      if (!pan) return;
+      setCanvasPan(pan.x, pan.y);
+    },
+    [getCenteredPan, setCanvasPan]
+  );
+
+  const centerSafeZone = useCallback(
+    (targetZoom: number) => {
+      const centerX = (safeZone.x + safeZone.w / 2) * canvasW;
+      const centerY = (safeZone.y + safeZone.h / 2) * canvasH;
+      centerCanvasPoint(targetZoom, centerX, centerY);
+    },
+    [canvasW, canvasH, safeZone, centerCanvasPoint]
+  );
+
+  const fitSafeZone = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const safeW = safeZone.w * canvasW;
+    const safeH = safeZone.h * canvasH;
+    if (safeW <= 0 || safeH <= 0) return;
+
+    const fitScale = Math.min(
+      (container.clientWidth / safeW) * FIT_PADDING,
+      (container.clientHeight / safeH) * FIT_PADDING,
+      ZOOM_MAX
+    );
+    const nextZoom = clampZoom(roundZoom(fitScale));
+    const centerX = canvasW / 2;
+    const centerY = canvasH / 2;
+    const pan = getCenteredPan(nextZoom, centerX, centerY);
+    if (pan) {
+      setCanvasView(nextZoom, pan.x, pan.y);
+      return;
+    }
+    requestAnimationFrame(() => {
+      const retry = getCenteredPan(nextZoom, centerX, centerY);
+      if (retry) {
+        setCanvasView(nextZoom, retry.x, retry.y);
+      }
+    });
+  }, [canvasW, canvasH, safeZone, FIT_PADDING, ZOOM_MAX, clampZoom, roundZoom, getCenteredPan, setCanvasView]);
 
   // Get all controls to render based on editing context
   const visibleControls = getVisibleControls(activeDialog, editingControlId);
@@ -132,46 +226,43 @@ export const Canvas: React.FC = () => {
         if (prevZoomRef.current === null) {
           prevZoomRef.current = zoomLevel;
         }
-        if (zoomLevel !== 1) {
-          setZoomLevel(1);
+        const centerX = (safeZone.x + safeZone.w / 2) * canvasW;
+        const centerY = (safeZone.y + safeZone.h / 2) * canvasH;
+        const pan = getCenteredPan(1, centerX, centerY);
+        if (pan) {
+          setCanvasView(1, pan.x, pan.y);
+        } else {
+          requestAnimationFrame(() => {
+            const retry = getCenteredPan(1, centerX, centerY);
+            if (retry) {
+              setCanvasView(1, retry.x, retry.y);
+            } else {
+              setZoomLevel(1);
+            }
+          });
         }
       } else if (prevZoomRef.current !== null) {
-        setZoomLevel(prevZoomRef.current);
         prevZoomRef.current = null;
         setFullscreenIntent(false);
+        requestAnimationFrame(() => {
+          fitSafeZone();
+        });
       }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [setCanvasFullscreen, setFullscreenIntent, setZoomLevel, zoomLevel]);
+  }, [setCanvasFullscreen, setFullscreenIntent, setZoomLevel, zoomLevel, safeZone, canvasW, canvasH, getCenteredPan, setCanvasView]);
 
-  // ===========================================================================
-  // Auto-fit zoom
-  // ===========================================================================
   useEffect(() => {
     if (!activeDialog || !containerRef.current) return;
-    const allControls = [...activeDialog.controlsBackground, ...activeDialog.controls];
-    if (allControls.length === 0) return;
+    centerSafeZone(zoom);
+  }, [activeDialog?.id, canvasW, canvasH, previewUIScale, centerSafeZone]);
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const ctrl of allControls) {
-      const coords = controlToCanvasCoords(ctrl, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
-      minX = Math.min(minX, coords.x);
-      minY = Math.min(minY, coords.y);
-      maxX = Math.max(maxX, coords.x + coords.w);
-      maxY = Math.max(maxY, coords.y + coords.h);
-    }
-
-    const ctrlW = maxX - minX;
-    const ctrlH = maxY - minY;
-    if (ctrlW <= 0 || ctrlH <= 0) return;
-
-    const containerW = containerRef.current.clientWidth * 0.85;
-    const containerH = containerRef.current.clientHeight * 0.85;
-    const fitScale = Math.min(containerW / (ctrlW || 1), containerH / (ctrlH || 1), 2.0);
-    setZoomLevel(Math.round(fitScale * 100) / 100);
-  }, [activeDialog?.id, canvasW, canvasH, gridSystem, gridVariant, previewUIScale]);
+  useEffect(() => {
+    if (!activeDialog) return;
+    fitSafeZone();
+  }, [canvasFitRequestId, activeDialog?.id, fitSafeZone]);
 
   // ===========================================================================
   // Resolve control from store by ID (use ref for speed in hot loops)
@@ -281,14 +372,16 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   const getCanvasMouse = useCallback(
     (e: MouseEvent | React.MouseEvent): { x: number; y: number } | null => {
-      if (!canvasInnerRef.current) return null;
-      const rect = canvasInnerRef.current.getBoundingClientRect();
+      const container = containerRef.current;
+      if (!container) return null;
+      const rect = container.getBoundingClientRect();
+      const currentPan = panRef.current;
       return {
-        x: (e.clientX - rect.left) / scale,
-        y: (e.clientY - rect.top) / scale,
+        x: (e.clientX - rect.left - currentPan.x) / zoom,
+        y: (e.clientY - rect.top - currentPan.y) / zoom,
       };
     },
-    [scale]
+    [zoom]
   );
 
   // ===========================================================================
@@ -318,11 +411,7 @@ export const Canvas: React.FC = () => {
         const ps = panStateRef.current;
         const dx = e.clientX - ps.startMouseX;
         const dy = e.clientY - ps.startMouseY;
-        const container = containerRef.current;
-        if (container) {
-          container.scrollLeft = ps.startScrollX - dx;
-          container.scrollTop = ps.startScrollY - dy;
-        }
+        setCanvasPan(ps.startPanX + dx, ps.startPanY + dy);
         return;
       }
 
@@ -638,7 +727,8 @@ export const Canvas: React.FC = () => {
           }
           const allRects = buildRectsForControls(allControls);
           const sz = computeSafeZone(canvasW, canvasH, previewUIScale);
-          const guides = findAlignments(selectedRects, allRects, canvasW, canvasH, sz);
+          const alignmentThreshold = Math.max(1, 5 / zoom);
+          const guides = findAlignments(selectedRects, allRects, canvasW, canvasH, sz, alignmentThreshold);
           setAlignmentGuides(guides);
         }
       }
@@ -668,7 +758,7 @@ export const Canvas: React.FC = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [pendingDrag, isDragging, isResizing, isPanning, activeDialogId, scale, snapToGrid, moveControl, resizeControl, resizeMultipleControls, showAlignmentGuides, snapToAlignment, setAlignmentGuides, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, buildRectsForControls]);
+  }, [pendingDrag, isDragging, isResizing, isPanning, activeDialogId, zoom, snapToGrid, moveControl, resizeControl, resizeMultipleControls, showAlignmentGuides, snapToAlignment, setAlignmentGuides, pixelToCurrentGrid, snapGridValue, enforceMinSize, runValidation, getCanvasMouse, clampToCanvas, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, buildRectsForControls]);
 
   // ===========================================================================
   // Keyboard: Delete, Escape, Ctrl+C, Ctrl+V, Arrow nudging
@@ -803,9 +893,10 @@ export const Canvas: React.FC = () => {
         e.preventDefault();
         const container = containerRef.current;
         if (!container) return;
+        const currentPan = panRef.current;
         panStateRef.current = {
-          startScrollX: container.scrollLeft,
-          startScrollY: container.scrollTop,
+          startPanX: currentPan.x,
+          startPanY: currentPan.y,
           startMouseX: e.clientX,
           startMouseY: e.clientY,
         };
@@ -835,14 +926,15 @@ export const Canvas: React.FC = () => {
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / scale;
-      const y = (e.clientY - rect.top) / scale;
+      const canvasMouse = getCanvasMouse(e);
+      if (!canvasMouse) return;
+      const x = canvasMouse.x;
+      const y = canvasMouse.y;
       const gridX = (x / canvasW * 40).toFixed(1);
       const gridY = (y / canvasH * 25).toFixed(1);
       setCursorGridPos(gridX, gridY);
     },
-    [canvasW, canvasH, scale, setCursorGridPos]
+    [canvasW, canvasH, getCanvasMouse, setCursorGridPos]
   );
 
   // ===========================================================================
@@ -856,9 +948,10 @@ export const Canvas: React.FC = () => {
         e.stopPropagation();
         const container = containerRef.current;
         if (!container) return;
+        const currentPan = panRef.current;
         panStateRef.current = {
-          startScrollX: container.scrollLeft,
-          startScrollY: container.scrollTop,
+          startPanX: currentPan.x,
+          startPanY: currentPan.y,
           startMouseX: e.clientX,
           startMouseY: e.clientY,
         };
@@ -981,23 +1074,19 @@ export const Canvas: React.FC = () => {
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      const currentPan = panRef.current;
 
-      const store = useEditorStore.getState();
-      const oldScale = store.zoomLevel;
+      const canvasX = (mx - currentPan.x) / zoom;
+      const canvasY = (my - currentPan.y) / zoom;
 
-      const canvasX = (mx + container.scrollLeft) / oldScale;
-      const canvasY = (my + container.scrollTop) / oldScale;
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+      const nextZoom = clampZoom(roundZoom(zoom + delta));
+      const nextPanX = mx - canvasX * nextZoom;
+      const nextPanY = my - canvasY * nextZoom;
 
-      const delta = e.deltaY > 0 ? -0.05 : 0.05;
-      const newScale = Math.max(0.1, Math.min(3.0, oldScale + delta));
-      store.setZoomLevel(Math.round(newScale * 100) / 100);
-
-      requestAnimationFrame(() => {
-        container.scrollLeft = canvasX * newScale - mx;
-        container.scrollTop = canvasY * newScale - my;
-      });
+      setCanvasView(nextZoom, nextPanX, nextPanY);
     },
-    []
+    [zoom, clampZoom, roundZoom, setCanvasView]
   );
 
   // ===========================================================================
@@ -1018,29 +1107,30 @@ export const Canvas: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-surface-light rounded-lg m-2 relative outline-none"
+      className="flex-1 overflow-hidden bg-surface-light rounded-lg m-2 relative outline-none"
       tabIndex={0}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}
       onContextMenu={(e) => e.preventDefault()}
       onClick={() => containerRef.current?.focus()}
       style={{
-        display: 'grid',
-        placeItems: 'safe center',
         cursor: isPanning ? 'grabbing' : isDragging ? 'grabbing' : isResizing ? 'crosshair' : pendingDrag ? 'grabbing' : 'grab',
       }}
     >
-      <div ref={fullscreenRef} data-canvas-fullscreen="true" className="relative mx-auto">
+      <div ref={fullscreenRef} data-canvas-fullscreen="true" className="relative w-full h-full">
         <div
           ref={canvasInnerRef}
           data-canvas="true"
           className="relative shadow-2xl"
           onWheel={handleWheel}
           style={{
-            width: canvasW * scale,
-            height: canvasH * scale,
-            minWidth: canvasW * scale,
-            minHeight: canvasH * scale,
+            width: canvasW,
+            height: canvasH,
+            minWidth: canvasW,
+            minHeight: canvasH,
+            transform: `translate3d(${canvasPanX}px, ${canvasPanY}px, 0) scale(${zoom})`,
+            transformOrigin: '0 0',
+            willChange: 'transform',
             backgroundColor: '#0a0a1a',
             backgroundImage:
               'linear-gradient(45deg, #111 25%, transparent 25%), ' +
@@ -1052,7 +1142,7 @@ export const Canvas: React.FC = () => {
           }}
         >
           {/* SafeZone exterior dimming & boundary */}
-          <SafeZoneOverlay safeZone={safeZone} canvasW={canvasW} canvasH={canvasH} scale={scale} />
+          <SafeZoneOverlay safeZone={safeZone} canvasW={canvasW} canvasH={canvasH} />
 
           {/* Grid overlay */}
           {showGrid && (
@@ -1060,7 +1150,6 @@ export const Canvas: React.FC = () => {
               gridSystem={gridSystem}
               canvasW={canvasW}
               canvasH={canvasH}
-              scale={scale}
               safeZone={safeZone}
             />
           )}
@@ -1076,15 +1165,13 @@ export const Canvas: React.FC = () => {
               gridVariant={gridVariant}
               canvasW={canvasW}
               canvasH={canvasH}
-              scale={scale}
-              safeZone={safeZone}
               uiScale={previewUIScale}
               onMouseDownCapture={(e) => handleControlMouseDown(ctrl.id, e)}
             />
           ))}
 
           {/* Alignment guide overlay */}
-          <AlignmentGuideOverlay guides={alignmentGuides} scale={scale} />
+          <AlignmentGuideOverlay guides={alignmentGuides} />
 
           {/* Selection overlay with resize handles */}
           <SelectionOverlay
@@ -1094,8 +1181,6 @@ export const Canvas: React.FC = () => {
             gridVariant={gridVariant}
             canvasW={canvasW}
             canvasH={canvasH}
-            scale={scale}
-            safeZone={safeZone}
             uiScale={previewUIScale}
             onHandleMouseDown={handleResizeHandleMouseDown}
           />
@@ -1155,23 +1240,21 @@ function SafeZoneOverlay({
   safeZone,
   canvasW,
   canvasH,
-  scale,
 }: {
   safeZone: { x: number; y: number; w: number; h: number };
   canvasW: number;
   canvasH: number;
-  scale: number;
 }) {
   const hasInset = safeZone.x > 0.001 || safeZone.y > 0.001;
   if (!hasInset) return null;
 
   const dimColor = 'rgba(0,0,0,0.4)';
-  const sx = safeZone.x * canvasW * scale;
-  const sy = safeZone.y * canvasH * scale;
-  const sw = safeZone.w * canvasW * scale;
-  const sh = safeZone.h * canvasH * scale;
-  const cw = canvasW * scale;
-  const ch = canvasH * scale;
+  const sx = safeZone.x * canvasW;
+  const sy = safeZone.y * canvasH;
+  const sw = safeZone.w * canvasW;
+  const sh = safeZone.h * canvasH;
+  const cw = canvasW;
+  const ch = canvasH;
 
   return (
     <>
