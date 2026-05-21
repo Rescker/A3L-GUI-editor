@@ -72,6 +72,7 @@ export const Canvas: React.FC = () => {
     previewResolution,
     previewUIScale,
     zoomLevel,
+    isCanvasFullscreen,
     editingControlId,
     selectControl,
     clearSelection,
@@ -88,15 +89,19 @@ export const Canvas: React.FC = () => {
     snapToAlignment,
     alignmentGuides,
     setAlignmentGuides,
+    setCanvasFullscreen,
+    setFullscreenIntent,
   } = useEditorStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
   const canvasInnerRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const resizeStateRef = useRef<SingleResizeState | null>(null);
   const groupResizeRef = useRef<GroupResizeState | null>(null);
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
   const panStateRef = useRef<PanState | null>(null);
+  const prevZoomRef = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [pendingDrag, setPendingDrag] = useState(false);
@@ -113,6 +118,33 @@ export const Canvas: React.FC = () => {
 
   // Get all controls to render based on editing context
   const visibleControls = getVisibleControls(activeDialog, editingControlId);
+
+  // ===========================================================================
+  // Fullscreen preview handling
+  // ===========================================================================
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const target = fullscreenRef.current;
+      const isActive = !!target && document.fullscreenElement === target;
+      setCanvasFullscreen(isActive);
+
+      if (isActive) {
+        if (prevZoomRef.current === null) {
+          prevZoomRef.current = zoomLevel;
+        }
+        if (zoomLevel !== 1) {
+          setZoomLevel(1);
+        }
+      } else if (prevZoomRef.current !== null) {
+        setZoomLevel(prevZoomRef.current);
+        prevZoomRef.current = null;
+        setFullscreenIntent(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [setCanvasFullscreen, setFullscreenIntent, setZoomLevel, zoomLevel]);
 
   // ===========================================================================
   // Auto-fit zoom
@@ -676,6 +708,7 @@ export const Canvas: React.FC = () => {
 
       // === Escape ===
       if (e.key === 'Escape') {
+        if (isCanvasFullscreen) return;
         clearSelection();
         return;
       }
@@ -750,7 +783,7 @@ export const Canvas: React.FC = () => {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedControlIds, activeDialogId, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, clearSelection, getControlById, pixelToCurrentGrid, clampToCanvas]);
+  }, [selectedControlIds, activeDialogId, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, clearSelection, getControlById, pixelToCurrentGrid, clampToCanvas, isCanvasFullscreen]);
 
   // ===========================================================================
   // Canvas click for deselection
@@ -989,47 +1022,66 @@ export const Canvas: React.FC = () => {
         cursor: isPanning ? 'grabbing' : isDragging ? 'grabbing' : isResizing ? 'crosshair' : pendingDrag ? 'grabbing' : 'grab',
       }}
     >
-      <div
-        ref={canvasInnerRef}
-        data-canvas="true"
-        className="relative mx-auto shadow-2xl"
-        onWheel={handleWheel}
-        style={{
-          width: canvasW * scale,
-          height: canvasH * scale,
-          minWidth: canvasW * scale,
-          minHeight: canvasH * scale,
-          backgroundColor: '#0a0a1a',
-          backgroundImage:
-            'linear-gradient(45deg, #111 25%, transparent 25%), ' +
-            'linear-gradient(-45deg, #111 25%, transparent 25%), ' +
-            'linear-gradient(45deg, transparent 75%, #111 75%), ' +
-            'linear-gradient(-45deg, transparent 75%, #111 75%)',
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-        }}
-      >
-        {/* SafeZone exterior dimming & boundary */}
-        <SafeZoneOverlay safeZone={safeZone} canvasW={canvasW} canvasH={canvasH} scale={scale} />
+      <div ref={fullscreenRef} data-canvas-fullscreen="true" className="relative mx-auto">
+        <div
+          ref={canvasInnerRef}
+          data-canvas="true"
+          className="relative shadow-2xl"
+          onWheel={handleWheel}
+          style={{
+            width: canvasW * scale,
+            height: canvasH * scale,
+            minWidth: canvasW * scale,
+            minHeight: canvasH * scale,
+            backgroundColor: '#0a0a1a',
+            backgroundImage:
+              'linear-gradient(45deg, #111 25%, transparent 25%), ' +
+              'linear-gradient(-45deg, #111 25%, transparent 25%), ' +
+              'linear-gradient(45deg, transparent 75%, #111 75%), ' +
+              'linear-gradient(-45deg, transparent 75%, #111 75%)',
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+          }}
+        >
+          {/* SafeZone exterior dimming & boundary */}
+          <SafeZoneOverlay safeZone={safeZone} canvasW={canvasW} canvasH={canvasH} scale={scale} />
 
-        {/* Grid overlay */}
-        {showGrid && (
-          <GridOverlay
-            gridSystem={gridSystem}
-            canvasW={canvasW}
-            canvasH={canvasH}
-            scale={scale}
-            safeZone={safeZone}
-          />
-        )}
+          {/* Grid overlay */}
+          {showGrid && (
+            <GridOverlay
+              gridSystem={gridSystem}
+              canvasW={canvasW}
+              canvasH={canvasH}
+              scale={scale}
+              safeZone={safeZone}
+            />
+          )}
 
-        {/* Render controls */}
-        {visibleControls.map((ctrl) => (
-          <ControlRenderer
-            key={ctrl.id}
-            control={ctrl}
-            dialogId={activeDialog.id}
-            isSelected={selectedControlIds.includes(ctrl.id)}
+          {/* Render controls */}
+          {visibleControls.map((ctrl) => (
+            <ControlRenderer
+              key={ctrl.id}
+              control={ctrl}
+              dialogId={activeDialog.id}
+              isSelected={selectedControlIds.includes(ctrl.id)}
+              gridSystem={gridSystem}
+              gridVariant={gridVariant}
+              canvasW={canvasW}
+              canvasH={canvasH}
+              scale={scale}
+              safeZone={safeZone}
+              uiScale={previewUIScale}
+              onMouseDownCapture={(e) => handleControlMouseDown(ctrl.id, e)}
+            />
+          ))}
+
+          {/* Alignment guide overlay */}
+          <AlignmentGuideOverlay guides={alignmentGuides} scale={scale} />
+
+          {/* Selection overlay with resize handles */}
+          <SelectionOverlay
+            controls={visibleControls}
+            selectedIds={selectedControlIds}
             gridSystem={gridSystem}
             gridVariant={gridVariant}
             canvasW={canvasW}
@@ -1037,26 +1089,9 @@ export const Canvas: React.FC = () => {
             scale={scale}
             safeZone={safeZone}
             uiScale={previewUIScale}
-            onMouseDownCapture={(e) => handleControlMouseDown(ctrl.id, e)}
+            onHandleMouseDown={handleResizeHandleMouseDown}
           />
-        ))}
-
-        {/* Alignment guide overlay */}
-        <AlignmentGuideOverlay guides={alignmentGuides} scale={scale} />
-
-        {/* Selection overlay with resize handles */}
-        <SelectionOverlay
-          controls={visibleControls}
-          selectedIds={selectedControlIds}
-          gridSystem={gridSystem}
-          gridVariant={gridVariant}
-          canvasW={canvasW}
-          canvasH={canvasH}
-          scale={scale}
-          safeZone={safeZone}
-          uiScale={previewUIScale}
-          onHandleMouseDown={handleResizeHandleMouseDown}
-        />
+        </div>
       </div>
     </div>
   );

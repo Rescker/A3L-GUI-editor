@@ -70,3 +70,18 @@ input:focus, select:focus, textarea:focus {
   color: #555;
   font-size: 14px;
 }
+
+/* Fullscreen canvas preview */
+[data-canvas-fullscreen]:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #000;
+  margin: 0;
+  overflow: hidden;
+}
+
+[data-canvas-fullscreen]:fullscreen [data-canvas="true"] {
+  box-shadow: none;
+}

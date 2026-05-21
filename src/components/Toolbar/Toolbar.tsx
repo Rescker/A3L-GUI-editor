@@ -19,6 +19,7 @@ export const Toolbar: React.FC = () => {
     previewResolution,
     previewUIScale,
     zoomLevel,
+    isCanvasFullscreen,
     componentLibraryOpen,
     history,
     historyIndex,
@@ -31,6 +32,7 @@ export const Toolbar: React.FC = () => {
     setPreviewResolution,
     setPreviewUIScale,
     setZoomLevel,
+    setFullscreenIntent,
     setImportModalOpen,
     setExportModalOpen,
     setComponentLibraryOpen,
@@ -198,6 +200,28 @@ export const Toolbar: React.FC = () => {
         title="Reset zoom"
       >
         Fit
+      </button>
+
+      <button
+        className={`px-2 py-1 rounded text-[11px] transition-colors ${
+          isCanvasFullscreen ? 'bg-amber-600/80 text-white' : 'bg-surface text-gray-500 hover:text-gray-300'
+        }`}
+        onClick={() => {
+          const target = document.querySelector('[data-canvas-fullscreen]') as HTMLElement | null;
+          if (isCanvasFullscreen) {
+            setFullscreenIntent(false);
+            document.exitFullscreen?.();
+            return;
+          }
+          if (!target?.requestFullscreen) return;
+          setFullscreenIntent(true);
+          target.requestFullscreen().catch(() => {
+            setFullscreenIntent(false);
+          });
+        }}
+        title="Fullscreen preview"
+      >
+        Preview
       </button>
 
       <div className="w-px h-4 bg-white/10" />

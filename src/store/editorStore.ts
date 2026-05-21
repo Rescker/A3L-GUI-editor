@@ -250,6 +250,8 @@ interface EditorStore {
   previewResolution: { w: number; h: number };
   previewUIScale: string;
   zoomLevel: number;
+  isCanvasFullscreen: boolean;
+  fullscreenIntent: boolean;
   cursorGridX: string;
   cursorGridY: string;
   importModalOpen: boolean;
@@ -287,6 +289,8 @@ interface EditorStore {
   setPreviewResolution: (res: { w: number; h: number }) => void;
   setPreviewUIScale: (scale: string) => void;
   setZoomLevel: (zoom: number) => void;
+  setCanvasFullscreen: (isFullscreen: boolean) => void;
+  setFullscreenIntent: (intent: boolean) => void;
   setImportModalOpen: (open: boolean) => void;
   setExportModalOpen: (open: boolean) => void;
   setUiehPickerOpen: (open: boolean) => void;
@@ -326,6 +330,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   previewResolution: { w: 1920, h: 1080 },
   previewUIScale: 'normal',
   zoomLevel: 0.5,
+  isCanvasFullscreen: false,
+  fullscreenIntent: false,
   cursorGridX: '0',
   cursorGridY: '0',
   importModalOpen: false,
@@ -634,6 +640,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPreviewResolution: (res) => set({ previewResolution: res }),
   setPreviewUIScale: (scale) => set({ previewUIScale: scale }),
   setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
+  setCanvasFullscreen: (isFullscreen) => set({ isCanvasFullscreen: isFullscreen }),
+  setFullscreenIntent: (intent) => set({ fullscreenIntent: intent }),
   setImportModalOpen: (open) => set({ importModalOpen: open }),
   setExportModalOpen: (open) => set({ exportModalOpen: open }),
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
