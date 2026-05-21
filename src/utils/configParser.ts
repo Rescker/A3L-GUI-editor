@@ -154,6 +154,68 @@ export function parseConfigClass(raw: string): Partial<DialogConfig> | null {
 }
 
 // =============================================================================
+// Standalone Classes Parser: class Foo : Bar { ... }; class Baz : Qux { ... };
+// No outer dialog wrapper — creates a synthetic dialog container.
+// =============================================================================
+export function parseStandaloneClasses(raw: string): Partial<DialogConfig> | null {
+  try {
+    const cleaned = raw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+    // Check for explicit dialog wrapper — if found, bail and let parseConfigClass handle it
+    if (/^\s*class\s+\w+\s*(?::\s*\w+)?\s*\{[\s\S]*\bidd\s*=/m.test(cleaned)) return null;
+
+    const controls: ControlConfig[] = [];
+    let idx = 0;
+
+    while (idx < cleaned.length) {
+      const classMatch = cleaned.slice(idx).match(/class\s+(\w+)\s*(?::\s*(\w+))?\s*\{/);
+      if (!classMatch || classMatch.index === undefined) break;
+
+      const classStart = idx + classMatch.index!;
+      const braceOpenIdx = classStart + classMatch[0].length - 1;
+      const classBody = matchBraces(cleaned, braceOpenIdx);
+
+      if (classBody !== null) {
+        const className = classMatch[1];
+        const parentClass = classMatch[2];
+        const ctrl = parseControlBlock(className, parentClass, classBody);
+        if (ctrl) controls.push(ctrl);
+
+        // Move past this class (brace close + semicolon)
+        const afterBody = braceOpenIdx + classBody.length + 1;
+        const rest = cleaned.slice(afterBody);
+        const semiIdx = rest.indexOf(';');
+        idx = afterBody + (semiIdx >= 0 ? semiIdx + 1 : 1);
+      } else {
+        idx++;
+      }
+    }
+
+    if (controls.length === 0) return null;
+
+    // Resolve within-file inheritance (child classes inheriting from siblings)
+    const resolved = resolveControlInheritance(controls);
+
+    return {
+      id: generateId(),
+      className: 'ImportedControls',
+      containerType: 'dialog',
+      idd: -1,
+      movingEnable: true,
+      enableSimulation: false,
+      onLoad: '',
+      onUnload: '',
+      controlsBackground: [],
+      controls: resolved,
+      objects: [],
+      eventHandlers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
 // Auto-detect import format
 // =============================================================================
 export function importConfig(raw: string): Partial<DialogConfig> | null {
@@ -163,7 +225,13 @@ export function importConfig(raw: string): Partial<DialogConfig> | null {
   if (trimmed.startsWith('$[')) {
     return parseEditorFormat(trimmed);
   }
-  return parseConfigClass(trimmed);
+
+  const dialogResult = parseConfigClass(trimmed);
+  if (dialogResult && (dialogResult.controls?.length || dialogResult.controlsBackground?.length)) {
+    return dialogResult;
+  }
+
+  return parseStandaloneClasses(trimmed);
 }
 
 // =============================================================================
