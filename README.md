@@ -2,20 +2,12 @@
 
 A **visual editor** for creating Arma 3 `config.cpp` UI dialogs, designed specifically for Life/RP server frameworks. Build complex layered UIs with a canvas-based editor, real-time preview, and full Arma 3 coordinate system support.
 
-## Screenshot / Overview
+## Screenshot
+
+![A3L GUI Editor](docs/screenshot.png)
 
 The editor provides a **three-panel layout**:
 
-```
-┌──────────────────────────────────────────────────┐
-│ Toolbar (grid, resolution, zoom, snap, preview)  │
-├──────────┬───────────────────────┬────────────────┤
-│ Component│                       │   Properties   │
-│ Library  │     Canvas            │   Panel        │
-│ Hierarchy│     (drag & resize)   │   (edit props) │
-├──────────┴───────────────────────┴────────────────┤
-│ Status Bar (position, zoom %, selection info)     │
-└──────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
