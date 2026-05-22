@@ -9,13 +9,16 @@ export const ImportExportModal: React.FC = () => {
   const {
     importModalOpen,
     exportModalOpen,
+    exportSelectedOnly,
     activeDialogId,
     exportFormat,
     setImportModalOpen,
     setExportModalOpen,
+    setExportSelectedOnly,
     setExportFormat,
     importData,
     exportData,
+    exportSelectedControls,
   } = useEditorStore();
 
   if (!importModalOpen && !exportModalOpen) return null;
@@ -30,15 +33,26 @@ export const ImportExportModal: React.FC = () => {
   // =============================================================================
   // Export Modal
   // =============================================================================
-  const output = activeDialogId ? exportData(activeDialogId) : '';
+  const handleClose = () => {
+    setExportModalOpen(false);
+    setExportSelectedOnly(false);
+  };
+
+  const output = activeDialogId
+    ? (exportSelectedOnly
+        ? exportSelectedControls(activeDialogId, exportFormat)
+        : exportData(activeDialogId, exportFormat))
+    : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={() => setExportModalOpen(false)} />
+      <div className="absolute inset-0 bg-black/60" onClick={handleClose} />
       <div className="relative bg-surface border border-white/10 rounded-lg shadow-2xl w-[800px] max-h-[85vh] flex flex-col">
         <div className="p-3 border-b border-white/5 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Export Config</h3>
-          <button className="text-gray-400 hover:text-white" onClick={() => setExportModalOpen(false)}>✕</button>
+          <h3 className="text-sm font-semibold">
+            {exportSelectedOnly ? 'Export Selected Controls' : 'Export Config'}
+          </h3>
+          <button className="text-gray-400 hover:text-white" onClick={handleClose}>✕</button>
         </div>
 
         <div className="p-3 border-b border-white/5 flex items-center gap-2">
@@ -65,7 +79,7 @@ export const ImportExportModal: React.FC = () => {
         <div className="p-3 border-t border-white/5 flex justify-end gap-2">
           <button
             className="px-3 py-1 bg-surface-light rounded text-xs text-gray-400 hover:text-white"
-            onClick={() => setExportModalOpen(false)}
+            onClick={handleClose}
           >
             Close
           </button>

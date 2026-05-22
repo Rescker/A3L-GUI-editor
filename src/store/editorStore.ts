@@ -259,6 +259,7 @@ interface EditorStore {
   cursorGridY: string;
   importModalOpen: boolean;
   exportModalOpen: boolean;
+  exportSelectedOnly: boolean;
   uiehPickerOpen: boolean;
   componentLibraryOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
@@ -301,11 +302,13 @@ interface EditorStore {
   setFullscreenIntent: (intent: boolean) => void;
   setImportModalOpen: (open: boolean) => void;
   setExportModalOpen: (open: boolean) => void;
+  setExportSelectedOnly: (value: boolean) => void;
   setUiehPickerOpen: (open: boolean) => void;
   setComponentLibraryOpen: (open: boolean) => void;
   setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
   importData: (raw: string) => void;
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
+  exportSelectedControls: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
   setCursorGridPos: (x: string, y: string) => void;
   runValidation: () => void;
   undo: () => void;
@@ -349,6 +352,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   cursorGridY: '0',
   importModalOpen: false,
   exportModalOpen: false,
+  exportSelectedOnly: false,
   uiehPickerOpen: false,
   componentLibraryOpen: false,
   exportFormat: 'full_dialog',
@@ -662,6 +666,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setFullscreenIntent: (intent) => set({ fullscreenIntent: intent }),
   setImportModalOpen: (open) => set({ importModalOpen: open }),
   setExportModalOpen: (open) => set({ exportModalOpen: open }),
+  setExportSelectedOnly: (value) => set({ exportSelectedOnly: value }),
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
   setComponentLibraryOpen: (open) => set({ componentLibraryOpen: open }),
   setExportFormat: (format) => set({ exportFormat: format }),
@@ -724,6 +729,28 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       emitIncludes: true,
       usePreprocessorColors: false,
       exportZone: 'all',
+      tabCount: 1,
+    });
+  },
+
+  exportSelectedControls: (dialogId, format) => {
+    const state = get();
+    const dialog = state.dialogs.find(d => d.id === dialogId);
+    if (!dialog) return '';
+
+    const selectedIds = state.selectedControlIds;
+    if (selectedIds.length === 0) return '';
+
+    return generateDialogConfig(dialog, {
+      format: format ?? state.exportFormat,
+      gridSystem: state.gridSystem,
+      gridVariant: state.gridVariant,
+      indentSize: 2,
+      useInheritance: true,
+      emitIncludes: true,
+      usePreprocessorColors: false,
+      exportZone: 'all',
+      selectedControlIds: selectedIds,
       tabCount: 1,
     });
   },

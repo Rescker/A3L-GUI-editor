@@ -508,6 +508,7 @@ export interface GeneratorOptions {
   emitIncludes: boolean;
   usePreprocessorColors: boolean;
   exportZone: 'background' | 'controls' | 'objects' | 'all';
+  selectedControlIds?: string[];
   tabCount: number;
 }
 

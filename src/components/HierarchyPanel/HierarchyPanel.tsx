@@ -28,6 +28,8 @@ export const HierarchyPanel: React.FC = () => {
     moveControlUp,
     moveControlDown,
     swapControlOrder,
+    setExportSelectedOnly,
+    setExportModalOpen,
   } = useEditorStore();
 
   type ContextTarget =
@@ -167,8 +169,20 @@ export const HierarchyPanel: React.FC = () => {
 
   return (
     <div className="w-60 bg-surface flex flex-col border-r border-white/5 h-full">
-      <div className="p-2 border-b border-white/5">
+      <div className="p-2 border-b border-white/5 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Hierarchy</span>
+        {selectedControlIds.length > 0 && activeDialogId && (
+          <button
+            className="text-[10px] px-2 py-0.5 bg-accent-cyan/20 text-accent-cyan rounded hover:bg-accent-cyan/30 transition-colors"
+            title={`Export ${selectedControlIds.length} selected control(s)`}
+            onClick={() => {
+              setExportSelectedOnly(true);
+              setExportModalOpen(true);
+            }}
+          >
+            ⬇ Export {selectedControlIds.length > 1 ? `(${selectedControlIds.length})` : ''}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -249,6 +263,17 @@ export const HierarchyPanel: React.FC = () => {
                     >
                       ✂ Duplicate
                     </button>
+                    <button
+                      className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                      onClick={() => {
+                        setExportSelectedOnly(true);
+                        setExportModalOpen(true);
+                        setContextMenu(null);
+                      }}
+                    >
+                      📦 Export Selected{selectedControlIds.length > 1 ? ` (${selectedControlIds.length})` : ''}
+                    </button>
+                    <div className="border-t border-white/5 my-1" />
                     <button
                       className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
                       onClick={() => {
@@ -380,6 +405,20 @@ export const HierarchyPanel: React.FC = () => {
                     >
                       📄 Paste
                     </button>
+                    {selectedControlIds.length > 0 && (
+                      <>
+                        <button
+                          className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
+                          onClick={() => {
+                            setExportSelectedOnly(true);
+                            setExportModalOpen(true);
+                            setContextMenu(null);
+                          }}
+                        >
+                          📦 Export Selected ({selectedControlIds.length})
+                        </button>
+                      </>
+                    )}
                     <div className="border-t border-white/10 my-1" />
                     <button
                       className="w-full text-left px-3 py-1 text-xs hover:bg-white/10 text-red-400"

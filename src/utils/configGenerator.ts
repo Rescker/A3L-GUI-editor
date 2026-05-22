@@ -84,30 +84,33 @@ function generateFullDialog(dialog: DialogConfig, opts: GeneratorOptions): strin
   }
 
   // Controls Background
-  if (dialog.controlsBackground.length > 0 && opts.exportZone !== 'controls' && opts.exportZone !== 'objects') {
+  const backgroundControls = getExportControls(dialog, { ...opts, exportZone: 'background' });
+  if (backgroundControls.length > 0 && opts.exportZone !== 'controls' && opts.exportZone !== 'objects') {
     lines.push(`${tab}class ControlsBackground`);
     lines.push(`${tab}{`);
-    for (const ctrl of dialog.controlsBackground) {
+    for (const ctrl of backgroundControls) {
       lines.push(...generateControlClass(ctrl, opts, 2));
     }
     lines.push(`${tab}};`);
   }
 
   // Controls
-  if (dialog.controls.length > 0 && opts.exportZone !== 'background' && opts.exportZone !== 'objects') {
+  const regularControls = getExportControls(dialog, { ...opts, exportZone: 'controls' });
+  if (regularControls.length > 0 && opts.exportZone !== 'background' && opts.exportZone !== 'objects') {
     lines.push(`${tab}class Controls`);
     lines.push(`${tab}{`);
-    for (const ctrl of dialog.controls) {
+    for (const ctrl of regularControls) {
       lines.push(...generateControlClass(ctrl, opts, 2));
     }
     lines.push(`${tab}};`);
   }
 
   // Objects
-  if (dialog.objects.length > 0 && (opts.exportZone === 'all' || opts.exportZone === 'objects')) {
+  const objectControls = getExportControls(dialog, { ...opts, exportZone: 'objects' });
+  if (objectControls.length > 0 && (opts.exportZone === 'all' || opts.exportZone === 'objects')) {
     lines.push(`${tab}class Objects`);
     lines.push(`${tab}{`);
-    for (const ctrl of dialog.objects) {
+    for (const ctrl of objectControls) {
       lines.push(...generateControlClass(ctrl, opts, 2));
     }
     lines.push(`${tab}};`);
@@ -669,16 +672,25 @@ function colorArraysEqual(a: import('../types/controls').ColorArray, b: number[]
 }
 
 function getExportControls(dialog: DialogConfig, opts: GeneratorOptions): ControlConfig[] {
+  const selectedSet = opts.selectedControlIds
+    ? new Set(opts.selectedControlIds)
+    : null;
+
+  const filter = (controls: ControlConfig[]): ControlConfig[] => {
+    if (!selectedSet) return controls;
+    return controls.filter(c => selectedSet.has(c.id));
+  };
+
   switch (opts.exportZone) {
     case 'background':
-      return dialog.controlsBackground;
+      return filter(dialog.controlsBackground);
     case 'controls':
-      return dialog.controls;
+      return filter(dialog.controls);
     case 'objects':
-      return dialog.objects;
+      return filter(dialog.objects);
     case 'all':
     default:
-      return [...dialog.controlsBackground, ...dialog.controls, ...dialog.objects];
+      return filter([...dialog.controlsBackground, ...dialog.controls, ...dialog.objects]);
   }
 }
 
