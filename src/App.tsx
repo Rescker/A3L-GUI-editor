@@ -96,6 +96,17 @@ function StatusBar({
       )}
       <div className="flex-1" />
       <span>Dialogs: <span className="text-gray-400">{dialogCount}</span></span>
+      <span className="text-gray-600">
+        Developed by{' '}
+        <a
+          href="https://github.com/Rescker/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-400 hover:text-accent-cyan transition-colors"
+        >
+          Rescker
+        </a>
+      </span>
     </div>
   );
 }
