@@ -1124,15 +1124,12 @@ export const Canvas: React.FC = () => {
   useEffect(() => { setCanvasViewRef.current = setCanvasView; }, [setCanvasView]);
 
   useEffect(() => {
-    const el = canvasInnerRef.current;
-    if (!el) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.altKey) return;
       e.preventDefault();
-
-      const container = containerRef.current;
-      if (!container) return;
 
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -1151,8 +1148,8 @@ export const Canvas: React.FC = () => {
       setCanvasViewRef.current(nextZoom, nextPanX, nextPanY);
     };
 
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
   // ===========================================================================
