@@ -405,10 +405,7 @@ export const Canvas: React.FC = () => {
   useEffect(() => {
     if (!pendingDrag && !isDragging && !isResizing && !isPanning) return;
 
-    let rafId: number | null = null;
-    let pendingEvent: MouseEvent | null = null;
-
-    const processMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent) => {
       // === Pan (middle mouse) ===
       if (isPanning && panStateRef.current) {
         const ps = panStateRef.current;
@@ -759,24 +756,9 @@ export const Canvas: React.FC = () => {
       runValidation();
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      pendingEvent = e;
-      if (rafId !== null) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        const evt = pendingEvent;
-        pendingEvent = null;
-        if (evt) processMove(evt);
-      });
-    };
-
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -951,18 +933,8 @@ export const Canvas: React.FC = () => {
   // ===========================================================================
   // Mouse move for cursor position display
   // ===========================================================================
-  const isDraggingRef = useRef(false);
-  const isResizingRef = useRef(false);
-  const isPanningRef = useRef(false);
-  const pendingDragRef = useRef(false);
-  useEffect(() => { isDraggingRef.current = isDragging; }, [isDragging]);
-  useEffect(() => { isResizingRef.current = isResizing; }, [isResizing]);
-  useEffect(() => { isPanningRef.current = isPanning; }, [isPanning]);
-  useEffect(() => { pendingDragRef.current = pendingDrag; }, [pendingDrag]);
-
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (isDraggingRef.current || isResizingRef.current || isPanningRef.current || pendingDragRef.current) return;
       if (!containerRef.current) return;
       const canvasMouse = getCanvasMouse(e);
       if (!canvasMouse) return;
@@ -1112,45 +1084,31 @@ export const Canvas: React.FC = () => {
 
   // ===========================================================================
   // Ctrl+Scroll / Alt+Scroll zoom — cursor-centered (Photoshop-style)
-  // Native listener with { passive: false } to allow preventDefault
   // ===========================================================================
-  const zoomRef = useRef(zoom);
-  const clampZoomRef = useRef(clampZoom);
-  const roundZoomRef = useRef(roundZoom);
-  const setCanvasViewRef = useRef(setCanvasView);
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  useEffect(() => { clampZoomRef.current = clampZoom; }, [clampZoom]);
-  useEffect(() => { roundZoomRef.current = roundZoom; }, [roundZoom]);
-  useEffect(() => { setCanvasViewRef.current = setCanvasView; }, [setCanvasView]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const onWheel = (e: WheelEvent) => {
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
       if (!e.ctrlKey && !e.altKey) return;
       e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
 
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const currentPan = panRef.current;
-      const currentZoom = zoomRef.current;
 
-      const canvasX = (mx - currentPan.x) / currentZoom;
-      const canvasY = (my - currentPan.y) / currentZoom;
+      const canvasX = (mx - currentPan.x) / zoom;
+      const canvasY = (my - currentPan.y) / zoom;
 
       const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-      const nextZoom = clampZoomRef.current(roundZoomRef.current(currentZoom + delta));
+      const nextZoom = clampZoom(roundZoom(zoom + delta));
       const nextPanX = mx - canvasX * nextZoom;
       const nextPanY = my - canvasY * nextZoom;
 
-      setCanvasViewRef.current(nextZoom, nextPanX, nextPanY);
-    };
-
-    container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
-  }, []);
+      setCanvasView(nextZoom, nextPanX, nextPanY);
+    },
+    [zoom, clampZoom, roundZoom, setCanvasView]
+  );
 
   // ===========================================================================
   // Render
@@ -1185,6 +1143,7 @@ export const Canvas: React.FC = () => {
           ref={canvasInnerRef}
           data-canvas="true"
           className="relative shadow-2xl"
+          onWheel={handleWheel}
           style={{
             width: canvasW,
             height: canvasH,
