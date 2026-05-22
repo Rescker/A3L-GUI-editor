@@ -249,11 +249,7 @@ export const Toolbar: React.FC = () => {
 
       {/* Components Toggle */}
       <button
-        className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-          componentLibraryOpen
-            ? 'bg-accent-purple text-white'
-            : 'bg-accent-purple/70 hover:bg-accent-purple text-white'
-        }`}
+        className={`px-2 py-1 rounded text-[11px] font-medium transition-colors text-white bg-accent-purple/70 hover:bg-accent-purple ${componentLibraryOpen ? 'bg-accent-purple' : ''}`}
         onClick={() => setComponentLibraryOpen(!componentLibraryOpen)}
         title="Toggle component library"
       >
