@@ -16,6 +16,7 @@ export default {
           DEFAULT: '#e94560',
           blue: '#533483',
           cyan: '#00b4d8',
+          purple: '#7c3aed',
         },
       },
     },

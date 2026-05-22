@@ -78,23 +78,32 @@ function StatusBar({
   dialogCount: number;
 }) {
   return (
-    <div className="h-6 bg-surface-light border-t border-white/5 flex items-center px-3 text-[10px] text-gray-500 gap-4 shrink-0">
+      <div className="h-6 bg-surface-light border-t border-white/5 flex items-center px-3 text-[10px] gap-4 shrink-0 shadow-[0_-1px_2px_rgba(0,0,0,0.3)]">
       <span>
-        Grid: <span className="text-gray-400">{gridSystem}</span>
+        <span className="text-gray-600">Grid</span>{' '}
+        <span className="text-gray-400">{gridSystem.replace(/_/g, ' ')}</span>
       </span>
+      <span className="text-gray-600">|</span>
       <span>
-        Pos: <span className="text-gray-400">{cursorGridX}, {cursorGridY}</span>
+        <span className="text-gray-600">Pos</span>{' '}
+        <span className="text-gray-400">{cursorGridX}, {cursorGridY}</span>
       </span>
+      <span className="text-gray-600">|</span>
       <span>
-        Zoom: <span className="text-gray-400">{Math.round(zoomLevel * 100)}%</span>
+        <span className="text-gray-600">Zoom</span>{' '}
+        <span className="text-gray-400">{Math.round(zoomLevel * 100)}%</span>
       </span>
       {selectedControl && (
+        <span className="text-gray-600">|</span>
+      )}
+      {selectedControl && (
         <span>
-          Selected: <span className="text-accent-cyan">{selectedControl.className}</span>
-          <span className="text-gray-600 ml-1">(IDC: {selectedControl.idc}, Type: CT_{selectedControl.type})</span>
+          <span className="text-accent-cyan font-mono">{selectedControl.className}</span>
+          <span className="text-gray-600 ml-1">(IDC: {selectedControl.idc}, CT_{selectedControl.type})</span>
         </span>
       )}
       <div className="flex-1" />
+      <span className="text-gray-600">|</span>
       <span>Dialogs: <span className="text-gray-400">{dialogCount}</span></span>
       <span className="text-gray-600">
         Developed by{' '}

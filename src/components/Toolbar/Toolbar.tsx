@@ -78,7 +78,7 @@ export const Toolbar: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-10 bg-surface-light border-b border-white/5 flex items-center px-2 gap-1.5 text-xs shrink-0">
+    <div       className="h-10 bg-surface-light border-b border-white/5 flex items-center px-2 gap-1.5 text-xs shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.4)] relative z-10">
       {/* Grid System */}
       <select
         className="bg-surface border border-white/10 rounded px-1.5 py-1 text-[11px] text-gray-300"
@@ -185,7 +185,7 @@ export const Toolbar: React.FC = () => {
       >
         −
       </button>
-      <span className="text-[11px] text-gray-400 w-10 text-center">
+      <span className="text-[11px] text-accent-cyan w-10 text-center bg-surface rounded px-1 py-0.5 font-medium">
         {Math.round(zoomLevel * 100)}%
       </span>
       <button
@@ -251,8 +251,8 @@ export const Toolbar: React.FC = () => {
       <button
         className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
           componentLibraryOpen
-            ? 'bg-accent-purple/30 text-accent-purple'
-            : 'bg-surface text-gray-500 hover:text-gray-300'
+            ? 'bg-accent-purple text-white'
+            : 'bg-accent-purple/70 hover:bg-accent-purple text-white'
         }`}
         onClick={() => setComponentLibraryOpen(!componentLibraryOpen)}
         title="Toggle component library"
