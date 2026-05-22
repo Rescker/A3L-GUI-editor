@@ -9,11 +9,12 @@ import { Canvas } from './components/Canvas/Canvas';
 import { HierarchyPanel } from './components/HierarchyPanel/HierarchyPanel';
 import { PropertiesPanel } from './components/PropertiesPanel/PropertiesPanel';
 import { ImportExportModal } from './components/ImportExportModal/ImportExportModal';
+import { HelpModal } from './components/HelpModal/HelpModal';
 import { ComponentLibrary } from './components/ComponentLibrary/ComponentLibrary';
 import { useEditorStore } from './store/editorStore';
 
 const App: React.FC = () => {
-  const { cursorGridX, cursorGridY, zoomLevel, selectedControlIds, activeDialogId, dialogs, gridSystem } = useEditorStore();
+  const { cursorGridX, cursorGridY, zoomLevel, selectedControlIds, activeDialogId, dialogs, gridSystem, helpModalOpen, setHelpModalOpen } = useEditorStore();
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
   const selectedControl = selectedControlIds.length === 1
@@ -55,6 +56,7 @@ const App: React.FC = () => {
 
       {/* Modals */}
       <ImportExportModal />
+      {helpModalOpen && <HelpModal onClose={() => setHelpModalOpen(false)} />}
     </div>
   );
 };

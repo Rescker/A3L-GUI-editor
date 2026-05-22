@@ -262,6 +262,7 @@ interface EditorStore {
   exportSelectedOnly: boolean;
   uiehPickerOpen: boolean;
   componentLibraryOpen: boolean;
+  helpModalOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
   validationIssues: ValidationIssue[];
   history: DialogConfig[][];
@@ -305,6 +306,7 @@ interface EditorStore {
   setExportSelectedOnly: (value: boolean) => void;
   setUiehPickerOpen: (open: boolean) => void;
   setComponentLibraryOpen: (open: boolean) => void;
+  setHelpModalOpen: (open: boolean) => void;
   setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
   importData: (raw: string) => void;
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
@@ -355,6 +357,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   exportSelectedOnly: false,
   uiehPickerOpen: false,
   componentLibraryOpen: false,
+  helpModalOpen: false,
   exportFormat: 'full_dialog',
   validationIssues: [],
   history: [],
@@ -669,6 +672,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setExportSelectedOnly: (value) => set({ exportSelectedOnly: value }),
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
   setComponentLibraryOpen: (open) => set({ componentLibraryOpen: open }),
+  setHelpModalOpen: (open) => set({ helpModalOpen: open }),
   setExportFormat: (format) => set({ exportFormat: format }),
 
   // === Import/Export ===

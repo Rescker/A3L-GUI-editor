@@ -37,6 +37,7 @@ export const Toolbar: React.FC = () => {
     setImportModalOpen,
     setExportModalOpen,
     setComponentLibraryOpen,
+    setHelpModalOpen,
     addDialog,
     undo,
     redo,
@@ -223,6 +224,17 @@ export const Toolbar: React.FC = () => {
         title="Fullscreen preview"
       >
         Preview
+      </button>
+
+      <div className="w-px h-4 bg-white/10" />
+
+      {/* Help */}
+      <button
+        className="px-2 py-1 rounded text-[11px] bg-surface text-gray-400 hover:text-accent-cyan"
+        onClick={() => setHelpModalOpen(true)}
+        title="Documentation"
+      >
+        ?
       </button>
 
       <div className="w-px h-4 bg-white/10" />
