@@ -43,10 +43,10 @@ function createDefaultControl(type: ControlType): ControlConfig {
     idc: 1600 + idCounter,
     type,
     style: 0,
-    x: 0,
-    y: 0,
-    w: info?.defaultSize.w ?? 10,
-    h: info?.defaultSize.h ?? 2,
+    x: 0.25,
+    y: 0.25,
+    w: 0.5,
+    h: 0.5,
     sizeEx: 4,
     font: 'RobotoCondensed',
     colorText: [1, 1, 1, 1],
@@ -70,10 +70,10 @@ function createControlFromPreset(presetId: string): ControlConfig | null {
     idc: 1600 + idCounter,
     type: preset.controlType,
     style: 0,
-    x: 0,
-    y: 0,
-    w: info?.defaultSize.w ?? 10,
-    h: info?.defaultSize.h ?? 2,
+    x: 0.25,
+    y: 0.25,
+    w: 0.5,
+    h: 0.5,
     sizeEx: 4,
     font: 'RobotoCondensed',
     colorText: [1, 1, 1, 1],
@@ -262,6 +262,7 @@ interface EditorStore {
   exportSelectedOnly: boolean;
   uiehPickerOpen: boolean;
   componentLibraryOpen: boolean;
+  helpModalOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
   validationIssues: ValidationIssue[];
   history: DialogConfig[][];
@@ -305,6 +306,7 @@ interface EditorStore {
   setExportSelectedOnly: (value: boolean) => void;
   setUiehPickerOpen: (open: boolean) => void;
   setComponentLibraryOpen: (open: boolean) => void;
+  setHelpModalOpen: (open: boolean) => void;
   setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
   importData: (raw: string) => void;
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
@@ -355,6 +357,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   exportSelectedOnly: false,
   uiehPickerOpen: false,
   componentLibraryOpen: false,
+  helpModalOpen: false,
   exportFormat: 'full_dialog',
   validationIssues: [],
   history: [],
@@ -669,6 +672,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setExportSelectedOnly: (value) => set({ exportSelectedOnly: value }),
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
   setComponentLibraryOpen: (open) => set({ componentLibraryOpen: open }),
+  setHelpModalOpen: (open) => set({ helpModalOpen: open }),
   setExportFormat: (format) => set({ exportFormat: format }),
 
   // === Import/Export ===

@@ -11,7 +11,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Static',
     description: 'Text, image, or background rectangle. Base type for most display elements.',
     category: 'static',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscText',
   },
   {
@@ -20,7 +20,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Button',
     description: 'Standard clickable button.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscButton',
   },
   {
@@ -29,7 +29,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Edit',
     description: 'Single-line or multi-line text input field.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscEdit',
   },
   {
@@ -38,7 +38,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Slider',
     description: 'Horizontal or vertical slider control.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscSlider',
   },
   {
@@ -47,7 +47,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Combo',
     description: 'Dropdown combo box.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscCombo',
   },
   {
@@ -56,7 +56,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Listbox',
     description: 'Standard listbox with selectable items.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 8 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscListbox',
   },
   {
@@ -65,7 +65,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Toolbox',
     description: 'A row/column of toggle buttons, only one selectable at a time.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 5 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscToolbox',
   },
   {
@@ -74,7 +74,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Checkboxes',
     description: 'Multiple checkboxes in a single control (array of bool states).',
     category: 'interactive',
-    defaultSize: { w: 10, h: 5 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscCheckBoxes',
   },
   {
@@ -83,7 +83,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Progress',
     description: 'Horizontal or vertical progress bar.',
     category: 'static',
-    defaultSize: { w: 10, h: 1.5 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscProgress',
   },
   {
@@ -92,7 +92,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'HTML',
     description: 'Renders HTML content (text, images, OGV video).',
     category: 'special',
-    defaultSize: { w: 20, h: 15 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscHTML',
   },
   {
@@ -101,7 +101,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Active Text',
     description: 'Clickable text link with an action property.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscActiveText',
   },
   {
@@ -110,7 +110,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Tree',
     description: 'Hierarchical tree view with expandable/collapsible nodes.',
     category: 'interactive',
-    defaultSize: { w: 15, h: 10 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscTree',
   },
   {
@@ -119,7 +119,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Structured Text',
     description: 'Rich text control supporting size/color tags via parseText.',
     category: 'static',
-    defaultSize: { w: 10, h: 5 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscStructuredText',
   },
   {
@@ -128,7 +128,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Context Menu',
     description: 'Right-click context menu with commands.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 5 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscContextMenu',
   },
   {
@@ -137,7 +137,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Controls Group',
     description: 'Container for other controls. Children use relative coordinates. Overflow adds scrollbars in-game.',
     category: 'container',
-    defaultSize: { w: 20, h: 15 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscControlsGroup',
   },
   {
@@ -146,7 +146,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Shortcut Button',
     description: 'Button with associated keyboard shortcut key.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscShortcutButton',
   },
   {
@@ -155,7 +155,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'XButton',
     description: 'Xbox controller-aware button.',
     category: 'xbox',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscXButton',
   },
   {
@@ -164,7 +164,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'XSlider',
     description: 'Xbox controller-aware slider.',
     category: 'xbox',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscXSliderH',
   },
   {
@@ -173,7 +173,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'XCombo',
     description: 'Xbox controller-aware combo box.',
     category: 'xbox',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscXCombo',
   },
   {
@@ -182,7 +182,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'XListbox',
     description: 'Xbox controller-aware listbox.',
     category: 'xbox',
-    defaultSize: { w: 10, h: 8 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscXListBox',
   },
   {
@@ -191,7 +191,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Checkbox',
     description: 'Single checkbox with label text.',
     category: 'interactive',
-    defaultSize: { w: 10, h: 2 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscCheckBox',
   },
   {
@@ -200,7 +200,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Object',
     description: '3D object preview render area.',
     category: 'special',
-    defaultSize: { w: 20, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscObject',
   },
   {
@@ -209,7 +209,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Object Zoom',
     description: 'Zoomable 3D object preview.',
     category: 'special',
-    defaultSize: { w: 20, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscObject',
   },
   {
@@ -218,7 +218,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Object Container',
     description: 'Container for 3D object with movability.',
     category: 'special',
-    defaultSize: { w: 20, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscObject',
   },
   {
@@ -227,7 +227,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Object Cont Anim',
     description: 'Animated 3D object container.',
     category: 'special',
-    defaultSize: { w: 20, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscObject',
   },
   {
@@ -236,7 +236,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Map',
     description: '2D terrain map display.',
     category: 'special',
-    defaultSize: { w: 20, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscMapControl',
   },
   {
@@ -245,7 +245,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'Map Main',
     description: 'Full-featured map (same as in-game map screen).',
     category: 'special',
-    defaultSize: { w: 30, h: 20 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscMapControl',
   },
   {
@@ -254,7 +254,7 @@ export const CONTROL_TYPES: ControlTypeInfo[] = [
     label: 'ListNBox',
     description: 'Multi-column listbox with columns.',
     category: 'interactive',
-    defaultSize: { w: 15, h: 10 },
+    defaultSize: { w: 0.5, h: 0.5 },
     defaultParent: 'RscListNBox',
   },
 ];

@@ -20,7 +20,6 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "baseUrl": ".",
     "types": ["vite/client"]
   },
   "include": ["src"]

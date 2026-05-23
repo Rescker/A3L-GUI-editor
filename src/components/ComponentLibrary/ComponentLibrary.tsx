@@ -5,9 +5,11 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '../../store/editorStore';
 import {
-  COMPONENT_PRESETS,
+  ARMA_PRESETS,
+  LIFE_PRESETS,
   getPresetsByCategory,
   getCategoryOrder,
+  type ComponentPreset,
   type ComponentCategory,
 } from '../../data/componentLibrary';
 
@@ -33,12 +35,18 @@ export const ComponentLibrary: React.FC = () => {
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>('Buttons');
   const [searchQuery, setSearchQuery] = useState('');
+  const [presetSource, setPresetSource] = useState<'all' | 'arma' | 'life'>('all');
 
-  const presetsByCategory = getPresetsByCategory();
+  const presetsByCategory = presetSource === 'all'
+    ? getPresetsByCategory()
+    : getPresetsByCategory(presetSource);
   const categories = getCategoryOrder();
 
   const filteredPresets = searchQuery
-    ? COMPONENT_PRESETS.filter(
+    ? (presetSource === 'all'
+        ? [...ARMA_PRESETS, ...LIFE_PRESETS]
+        : presetSource === 'arma' ? ARMA_PRESETS : LIFE_PRESETS
+      ).filter(
         p =>
           p.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -79,6 +87,23 @@ export const ComponentLibrary: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+      </div>
+
+      {/* Source tabs */}
+      <div className="flex px-2 pb-1.5 gap-1">
+        {(['all', 'arma', 'life'] as const).map(src => (
+          <button
+            key={src}
+            className={`flex-1 text-[10px] font-medium uppercase tracking-wider rounded py-1 transition-colors ${
+              presetSource === src
+                ? 'bg-accent-blue/30 text-accent-cyan'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+            }`}
+            onClick={() => setPresetSource(src)}
+          >
+            {src === 'all' ? 'All' : src === 'arma' ? 'Arma' : 'Life'}
+          </button>
+        ))}
       </div>
 
       {/* Component list */}
@@ -148,7 +173,7 @@ function ComponentCard({
   preset,
   onInsert,
 }: {
-  preset: (typeof COMPONENT_PRESETS)[number];
+  preset: ComponentPreset;
   onInsert: () => void;
 }) {
   return (

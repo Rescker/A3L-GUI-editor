@@ -1,11 +1,13 @@
 // =============================================================================
 // TabBar — Photoshop-style project tabs above the canvas
 // Shows all open dialogs/displays/HUDs as tabs. Click to switch active dialog.
+// Middle-click or scroll-down to close tabs (like a browser).
 // Always visible — shows create prompt when no dialogs exist.
 // =============================================================================
 
 import React, { useCallback, useRef, useState } from 'react';
 import { useEditorStore } from '../../store/editorStore';
+import { downloadProjectFile } from '../../utils/projectSerializer';
 import type { UIContainerType } from '../../types/controls';
 
 const TYPE_BADGES: Record<string, { label: string; color: string }> = {
@@ -14,10 +16,22 @@ const TYPE_BADGES: Record<string, { label: string; color: string }> = {
   hud: { label: 'H', color: 'bg-emerald-600' },
 };
 
+function dialogHasControls(dialogId: string): boolean {
+  const state = useEditorStore.getState();
+  const dialog = state.dialogs.find(d => d.id === dialogId);
+  if (!dialog) return false;
+  return (
+    dialog.controlsBackground.length > 0 ||
+    dialog.controls.length > 0 ||
+    dialog.objects.length > 0
+  );
+}
+
 export const TabBar: React.FC = () => {
   const { dialogs, activeDialogId, setActiveDialog, removeDialog, addDialog } = useEditorStore();
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; dialogId: string } | null>(null);
+  const [closeConfirm, setCloseConfirm] = useState<string | null>(null);
   const plusBtnRef = useRef<HTMLButtonElement>(null);
 
   const handleCreate = useCallback((type: UIContainerType) => {
@@ -40,6 +54,50 @@ export const TabBar: React.FC = () => {
   const closeNewMenu = useCallback(() => {
     setShowNewMenu(false);
   }, []);
+
+  const handleCloseRequest = useCallback((dialogId: string) => {
+    if (dialogHasControls(dialogId)) {
+      setCloseConfirm(dialogId);
+    } else {
+      removeDialog(dialogId);
+    }
+  }, [removeDialog]);
+
+  const handleConfirmClose = useCallback((dialogId: string) => {
+    removeDialog(dialogId);
+    setCloseConfirm(null);
+  }, [removeDialog]);
+
+  const handleSave = useCallback((dialogId: string) => {
+    const store = useEditorStore.getState();
+    const dialog = store.dialogs.find(d => d.id === dialogId);
+    const name = dialog?.className ?? 'project';
+    const json = store.exportProject();
+    downloadProjectFile(json, `${name}.a3l.json`);
+    setCloseConfirm(null);
+  }, []);
+
+  const handleCancelClose = useCallback(() => {
+    setCloseConfirm(null);
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent, dialogId: string) => {
+    if (e.deltaY > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCloseRequest(dialogId);
+    }
+  }, [handleCloseRequest]);
+
+  const handleMiddleClick = useCallback((e: React.MouseEvent, dialogId: string) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCloseRequest(dialogId);
+    }
+  }, [handleCloseRequest]);
+
+  const closeDialog = closeConfirm ? dialogs.find(d => d.id === closeConfirm) : null;
 
   return (
     <>
@@ -83,7 +141,9 @@ export const TabBar: React.FC = () => {
                     }`}
                     onClick={() => setActiveDialog(dialog.id)}
                     onContextMenu={(e) => handleTabContext(e, dialog.id)}
-                    title={`${dialog.className} (IDD: ${dialog.idd})`}
+                    onWheel={(e) => handleWheel(e, dialog.id)}
+                    onMouseDown={(e) => handleMiddleClick(e, dialog.id)}
+                    title={`${dialog.className} (IDD: ${dialog.idd}) — Scroll down or middle-click to close`}
                   >
                     <span className={`text-[10px] px-1 py-0 rounded-sm font-bold uppercase text-white ${badge.color}`}>
                       {badge.label}
@@ -93,7 +153,7 @@ export const TabBar: React.FC = () => {
                       className="ml-1 w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 text-[10px]"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeDialog(dialog.id);
+                        handleCloseRequest(dialog.id);
                       }}
                       title="Close"
                     >
@@ -166,12 +226,49 @@ export const TabBar: React.FC = () => {
             <button
               className="w-full text-left px-3 py-1 text-xs hover:bg-white/10"
               onClick={() => {
-                removeDialog(contextMenu.dialogId);
+                handleCloseRequest(contextMenu.dialogId);
                 setContextMenu(null);
               }}
             >
               🗑 Close
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Close confirmation modal */}
+      {closeConfirm && closeDialog && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={handleCancelClose} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="bg-surface border border-white/10 rounded-xl shadow-2xl p-8 max-w-lg w-full mx-4 pointer-events-auto">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Close &ldquo;{closeDialog.className}&rdquo;?
+              </h3>
+              <p className="text-sm text-gray-300 mb-6">
+                This project has controls. Closing will discard unsaved work.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-700/30 rounded-lg text-sm text-red-300 font-medium transition-colors"
+                  onClick={() => handleConfirmClose(closeConfirm)}
+                >
+                  Yes, close
+                </button>
+                <button
+                  className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm text-gray-300 font-medium transition-colors"
+                  onClick={handleCancelClose}
+                >
+                  No, keep open
+                </button>
+                <button
+                  className="flex-1 px-4 py-2.5 bg-accent-purple/70 hover:bg-accent-purple border border-accent-purple/30 rounded-lg text-sm text-white font-medium transition-colors"
+                  onClick={() => handleSave(closeConfirm)}
+                >
+                  Save project
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

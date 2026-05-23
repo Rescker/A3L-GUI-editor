@@ -93,6 +93,7 @@ export interface RectPos {
 export interface StructuredAttributes {
   font: string;
   color: string;
+  colorLink?: string;
   align: string;
   shadow: number | string;
 }
@@ -153,6 +154,8 @@ export interface ControlConfig {
   lineSpacing?: number;
   tileH?: number;
   tileW?: number;
+  autoplay?: number;
+  loops?: number;
   canDrag?: boolean;
   deletable?: 0 | 1;
   fade?: number;
@@ -244,6 +247,15 @@ export interface ControlConfig {
   textPos?: RectPos;
   attributes?: StructuredAttributes;
   attributesImage?: ImageAttributes;
+  textSecondary?: string;
+  colorSecondary?: ColorRGBA;
+  colorFocusedSecondary?: ColorRGBA;
+  color2Secondary?: ColorRGBA;
+  colorDisabledSecondary?: ColorRGBA;
+  fontSecondary?: string;
+  sizeExSecondary?: number | string;
+  autoAdjustTexture?: boolean;
+  shortcuts?: string[];
 
   // === ScrollBar properties ===
   scrollSpeed?: number;
@@ -258,12 +270,21 @@ export interface ControlConfig {
   autoScrollSpeed?: number;
   autoScrollDelay?: number;
   autoScrollRewind?: number;
+  colorTextRight?: ColorRGBA;
+  colorPictureRight?: ColorRGBA;
+  colorPictureRightSelected?: ColorRGBA;
+  colorPictureRightDisabled?: ColorRGBA;
+  colorSelectRight?: ColorRGBA;
+  colorSelect2Right?: ColorRGBA;
 
   // === Slider / XSlider specific (types 3, 43) ===
   arrowEmpty?: string;
   arrowFull?: string;
   border?: string;
   thumb?: string;
+  sliderPosition?: number;
+  sliderRange?: [number, number];
+  sliderStep?: number;
 
   // === Progress specific (type 8) ===
   texture?: string;
