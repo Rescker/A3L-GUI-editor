@@ -85,6 +85,8 @@ export const Canvas: React.FC = () => {
     resizeMultipleControls,
     removeControl,
     addControlFromTemplate,
+    moveControlUp,
+    moveControlDown,
     setCursorGridPos,
     setZoomLevel,
     setCanvasPan,
@@ -824,6 +826,18 @@ export const Canvas: React.FC = () => {
         return;
       }
 
+      // === Ctrl+Shift+Arrow Up/Down — reorder selected control in hierarchy ===
+      if (ids.length > 0 && dialogId && e.ctrlKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const store = useEditorStore.getState();
+        if (e.key === 'ArrowUp') {
+          for (const id of ids) store.moveControlUp(dialogId, id);
+        } else {
+          for (const id of ids) store.moveControlDown(dialogId, id);
+        }
+        return;
+      }
+
       // === Arrow key nudging (1 grid unit or pixel unit) ===
       if (ids.length > 0 && dialogId && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         // Don't nudge if the cursor stays at the boundaries of a text field
@@ -909,7 +923,7 @@ export const Canvas: React.FC = () => {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedControlIds, activeDialogId, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, clearSelection, getControlById, pixelToCurrentGrid, clampToCanvas, isCanvasFullscreen]);
+  }, [selectedControlIds, activeDialogId, canvasW, canvasH, gridSystem, gridVariant, previewUIScale, clearSelection, getControlById, pixelToCurrentGrid, clampToCanvas, isCanvasFullscreen, moveControlUp, moveControlDown]);
 
   // ===========================================================================
   // Canvas click for deselection
@@ -1124,7 +1138,7 @@ export const Canvas: React.FC = () => {
   useEffect(() => { setCanvasViewRef.current = setCanvasView; }, [setCanvasView]);
 
   useEffect(() => {
-    const el = canvasInnerRef.current;
+    const el = containerRef.current;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
