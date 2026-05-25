@@ -21,6 +21,7 @@ import { validateAll } from '../utils/validation';
 import { generateDialogConfig } from '../utils/configGenerator';
 import { importConfig } from '../utils/configParser';
 import { serializeProject, deserializeProject } from '../utils/projectSerializer';
+import { controlToCanvasCoords, pixelToGridExpr } from '../utils/gridUtils';
 
 // =============================================================================
 // Helpers
@@ -655,7 +656,36 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   // === Settings ===
 
-  setGridSystem: (grid) => set({ gridSystem: grid }),
+  setGridSystem: (grid) => set(state => {
+    if (state.gridSystem === grid) return state;
+    const { previewResolution, previewUIScale, gridVariant, dialogs, gridSystem: oldGrid } = state;
+    const canvasW = previewResolution.w;
+    const canvasH = previewResolution.h;
+
+    const convertControl = (ctrl: ControlConfig): ControlConfig => {
+      const coords = controlToCanvasCoords(ctrl, oldGrid, gridVariant, canvasW, canvasH, previewUIScale);
+      const newExpr = pixelToGridExpr(coords.x, coords.y, coords.w, coords.h, grid, gridVariant, canvasW, canvasH, previewUIScale);
+      return {
+        ...ctrl,
+        x: newExpr.x,
+        y: newExpr.y,
+        w: newExpr.w,
+        h: newExpr.h,
+      };
+    };
+
+    const convertChildren = (children?: ControlConfig[]): ControlConfig[] | undefined =>
+      children?.map(c => ({ ...convertControl(c), children: convertChildren(c.children) }));
+
+    const newDialogs = dialogs.map(d => ({
+      ...d,
+      controlsBackground: d.controlsBackground.map(c => ({ ...convertControl(c), children: convertChildren(c.children) })),
+      controls: d.controls.map(c => ({ ...convertControl(c), children: convertChildren(c.children) })),
+      objects: d.objects.map(c => ({ ...convertControl(c), children: convertChildren(c.children) })),
+    }));
+
+    return { gridSystem: grid, dialogs: newDialogs };
+  }),
   setGridVariant: (variant) => set({ gridVariant: variant }),
   setShowGrid: (show) => set({ showGrid: show }),
   setSnapToGrid: (snap) => set({ snapToGrid: snap }),
@@ -697,13 +727,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         fadeOut: parsed.fadeOut,
         duration: parsed.duration,
       };
-      // Auto-detect coordinate system: if all x/w values are 0..1 and y/h are 0..1,
-      // the config uses absolute coordinates
+      // Auto-detect coordinate system from control expressions
       const allControls = [...dialog.controlsBackground, ...dialog.controls, ...dialog.objects];
-      const useAbsolute = allControls.length > 0 && allControls.every(c =>
-        isFloatInRange(c.x, 0, 1) && isFloatInRange(c.y, 0, 1) &&
-        isFloatInRange(c.w, 0, 1) && isFloatInRange(c.h, 0, 1)
-      );
+      const detectedGrid = detectGridSystem(allControls);
       set(state => {
         const newDialogs = [...state.dialogs, dialog];
         const hist = pushHistory(state, state.dialogs, newDialogs);
@@ -712,7 +738,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           dialogs: newDialogs,
           activeDialogId: dialog.id,
           importModalOpen: false,
-          gridSystem: useAbsolute ? 'absolute' : state.gridSystem,
+          gridSystem: detectedGrid ?? state.gridSystem,
           validationIssues: validateAll(newDialogs),
         };
       });
@@ -1003,6 +1029,21 @@ function addToGroup(controls: ControlConfig[], groupId: string, child: ControlCo
       }
     }
   }
+  return null;
+}
+
+function detectGridSystem(controls: ControlConfig[]): GridSystem | null {
+  for (const c of controls) {
+    for (const prop of ['x', 'y', 'w', 'h'] as const) {
+      const val = String(c[prop]);
+      if (/safezone[WHXY]/i.test(val)) return 'safezone';
+      if (/GUI_GRID_/i.test(val)) return 'gui_grid';
+    }
+  }
+  if (controls.length > 0 && controls.every(c =>
+    isFloatInRange(c.x, 0, 1) && isFloatInRange(c.y, 0, 1) &&
+    isFloatInRange(c.w, 0, 1) && isFloatInRange(c.h, 0, 1)
+  )) return 'absolute';
   return null;
 }
 
