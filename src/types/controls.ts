@@ -4,7 +4,7 @@
 
 export type UIContainerType = 'dialog' | 'display' | 'hud';
 
-export type GridSystem = 'absolute' | 'safezone' | 'gui_grid' | 'pixel_grid';
+export type GridSystem = 'absolute' | 'safezone' | 'gui_grid';
 
 export type ControlZone = 'controlsBackground' | 'controls' | 'objects';
 
@@ -265,7 +265,8 @@ export interface ControlConfig {
 
   // === ListBox / ListNBox / Combo specific (types 4, 5, 102) ===
   wholeHeight?: number;
-  rowHeight?: number;
+  rowHeight?: number | string;
+  columnWidths?: number[];
   maxHistoryDelay?: number;
   autoScrollSpeed?: number;
   autoScrollDelay?: number;

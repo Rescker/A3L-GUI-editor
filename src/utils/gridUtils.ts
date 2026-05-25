@@ -58,26 +58,6 @@ export function computeGuiGridUnits(safeZone: { x: number; y: number; w: number;
 }
 
 // =============================================================================
-// Pixel Grid units
-// =============================================================================
-export function computePixelGridUnits(
-  canvasW: number,
-  canvasH: number,
-  safeZone: { x: number; y: number; w: number; h: number }
-) {
-  const scaleY = canvasH / safeZone.h;
-  const scaleX = scaleY * (4 / 3);
-  
-  const pixelGrid = 5;
-  const gridW = (1 / scaleX) * pixelGrid;
-  const gridH = (1 / scaleY) * pixelGrid;
-  const centerX = safeZone.x + safeZone.w / 2;
-  const centerY = safeZone.y + safeZone.h / 2;
-  
-  return { pixelW: 1/scaleX, pixelH: 1/scaleY, pixelGrid, gridW, gridH, centerX, centerY };
-}
-
-// =============================================================================
 // Evaluate a GUI_GRID expression string
 // =============================================================================
 export function evalGuiGridExpression(
@@ -171,18 +151,6 @@ export function gridExprToPixel(
   const val = typeof expr === 'string' ? evalGuiGridExpression(expr, safeZone, variant) : expr;
 
   switch (grid) {
-    case 'pixel_grid': {
-      const units = computePixelGridUnits(canvasWidth, canvasHeight, safeZone);
-      if (vertical) {
-        if (isSize) return val * units.gridH * canvasHeight;
-        return (safeZone.y * canvasHeight) + val * units.gridH * canvasHeight;
-      }
-      if (isSize) return val * units.gridW * canvasWidth;
-      return (safeZone.x * canvasWidth) + val * units.gridW * canvasWidth;
-    }
-
-    // A MÁGICA ESTÁ AQUI: Absolute, SafeZone e GUI_GRID usam EXATAMENTE
-    // a mesma matemática de renderização por baixo dos panos na engine!
     case 'absolute':
     case 'safezone':
     case 'gui_grid':
@@ -259,9 +227,6 @@ export function pixelToGridExpr(
         h: `${roundFloat(hGrid)} * ${varHExpr}`,
       };
     }
-    case 'pixel_grid': {
-      return { x: '0', y: '0', w: '0', h: '0' }; // Simplificado
-    }
   }
 }
 
@@ -314,6 +279,19 @@ export function applyExpressionDelta(expr: string | number, delta: number): stri
     if (!isNaN(baseVal)) {
       const newVal = roundFloat(baseVal + delta);
       return `${newVal}${rest}`;
+    }
+  }
+
+  // Handle grid/safezone expression: "NUMBER * VAR +/- VAR" or "NUMBER * VAR"
+  // e.g. "0.1985 * safezoneW + safezoneX", "4.7 * GUI_GRID_CENTER_W + GUI_GRID_CENTER_X"
+  // Updates only the leading multiplier, preserves expression structure
+  const gridExprMatch = trimmed.match(/^([\d.-]+)\s*(\*\s*[A-Za-z_]\w*(?:\s*[+-]\s*[A-Za-z_]\w*)?)$/);
+  if (gridExprMatch) {
+    const baseVal = parseFloat(gridExprMatch[1]);
+    const rest = gridExprMatch[2];
+    if (!isNaN(baseVal)) {
+      const newVal = roundFloat(baseVal + delta);
+      return `${newVal} ${rest}`;
     }
   }
 

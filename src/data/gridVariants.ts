@@ -110,5 +110,4 @@ export const GRID_SYSTEM_LABELS: Record<string, string> = {
   absolute: 'Absolute (Legacy)',
   safezone: 'SafeZone',
   gui_grid: 'GUI_GRID',
-  pixel_grid: 'Pixel Grid',
 };

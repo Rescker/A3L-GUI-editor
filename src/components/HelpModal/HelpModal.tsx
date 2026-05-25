@@ -84,11 +84,6 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
                     <td className="py-1.5 pr-3 text-gray-500">0–1</td>
                     <td className="py-1.5 text-gray-400">Legacy absolute screen coordinates</td>
                   </tr>
-                  <tr>
-                    <td className="py-1.5 pr-3 text-accent-cyan font-mono">Pixel Grid</td>
-                    <td className="py-1.5 pr-3 text-gray-500">5px steps</td>
-                    <td className="py-1.5 text-gray-400">Pixel-aligned grid for precise positioning</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
