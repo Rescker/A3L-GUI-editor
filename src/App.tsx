@@ -11,10 +11,11 @@ import { PropertiesPanel } from './components/PropertiesPanel/PropertiesPanel';
 import { ImportExportModal } from './components/ImportExportModal/ImportExportModal';
 import { HelpModal } from './components/HelpModal/HelpModal';
 import { ComponentLibrary } from './components/ComponentLibrary/ComponentLibrary';
+import { ResizeImageModal } from './components/ResizeImageModal/ResizeImageModal';
 import { useEditorStore } from './store/editorStore';
 
 const App: React.FC = () => {
-  const { cursorGridX, cursorGridY, zoomLevel, selectedControlIds, activeDialogId, dialogs, gridSystem, helpModalOpen, setHelpModalOpen } = useEditorStore();
+  const { cursorGridX, cursorGridY, zoomLevel, selectedControlIds, activeDialogId, dialogs, gridSystem, helpModalOpen, setHelpModalOpen, resizeImageModalOpen, setResizeImageModalOpen } = useEditorStore();
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
   const selectedControl = selectedControlIds.length === 1
@@ -57,6 +58,7 @@ const App: React.FC = () => {
       {/* Modals */}
       <ImportExportModal />
       {helpModalOpen && <HelpModal onClose={() => setHelpModalOpen(false)} />}
+      {resizeImageModalOpen && <ResizeImageModal onClose={() => setResizeImageModalOpen(false)} />}
     </div>
   );
 };

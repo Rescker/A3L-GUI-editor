@@ -2,7 +2,8 @@
 // AppearanceSection — Font, colors, shadow, text, tooltip
 // =============================================================================
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { convertToPaa } from '../../utils/paaConverter';
 import { useEditorStore } from '../../store/editorStore';
 import { CollapsibleSection, Field } from './PropertiesPanel';
 import { FONT_LIST } from '../../data/fontList';
@@ -19,9 +20,11 @@ export const AppearanceSection: React.FC = () => {
     gridVariant,
     previewResolution,
     previewUIScale,
+    setResizeImageModalOpen,
   } = useEditorStore();
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const [converting, setConverting] = useState(false);
 
   const activeDialog = dialogs.find(d => d.id === activeDialogId);
   const ctrl = selectedControlIds.length === 1 ? findControl(activeDialog, selectedControlIds[0]) : null;
@@ -49,6 +52,29 @@ export const AppearanceSection: React.FC = () => {
     const expr = pixelToGridExpr(0, 0, w, h, gridSystem, gridVariant, previewResolution.w, previewResolution.h, previewUIScale);
     updateControl(activeDialogId, ctrl.id, { w: expr.w, h: expr.h });
   }, [activeDialogId, ctrl.id, gridSystem, gridVariant, previewResolution, previewUIScale, updateControl]);
+
+  const handleConvertToPaa = useCallback(async () => {
+    const dataUrl = ctrl?.imageDataUrl;
+    if (!dataUrl) return;
+    setConverting(true);
+    try {
+      const paaData = await convertToPaa(dataUrl);
+      const blob = new Blob([paaData as BlobPart], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'texture.paa';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      alert(msg);
+    } finally {
+      setConverting(false);
+    }
+  }, [ctrl?.imageDataUrl]);
 
   // Check if current dimensions are power-of-two
   const isPow2 = (n: number): boolean => n > 0 && (n & (n - 1)) === 0;
@@ -248,21 +274,30 @@ export const AppearanceSection: React.FC = () => {
         {isPicture && (
           <>
             <div className="border-t border-white/5 pt-2 mt-1" />
-            <Field label="Upload Image (.png)">
+            <Field label="Upload Image">
               <div className="flex gap-1">
                 <button
                   className="px-2 py-1 bg-accent-blue hover:bg-accent-blue/80 rounded text-xs text-white"
                   onClick={() => fileRef.current?.click()}
                 >
-                  Choose PNG
+                  Choose IMG
                 </button>
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".png,image/png"
+                  accept="image/png,image/jpeg,image/jpg"
                   className="hidden"
                   onChange={handleFileSelect}
                 />
+                {ctrl.imageDataUrl && (
+                  <button
+                    className="px-2 py-1 bg-green-700 hover:bg-green-600 disabled:bg-green-800 disabled:opacity-50 rounded text-xs text-white transition-colors"
+                    onClick={handleConvertToPaa}
+                    disabled={converting}
+                  >
+                    {converting ? 'Converting...' : 'Convert to PAA'}
+                  </button>
+                )}
                 {ctrl.imageDataUrl && (
                   <button
                     className="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs text-white"
@@ -275,15 +310,20 @@ export const AppearanceSection: React.FC = () => {
             </Field>
 
             {ctrl.imageDataUrl && (
-              <div className="flex justify-center">
+              <div className="flex items-center gap-3">
                 <img
                   src={ctrl.imageDataUrl}
                   alt="Preview"
                   className="max-w-full max-h-24 rounded border border-white/10"
                 />
+                <button
+                  className="px-2 py-1 bg-yellow-700 hover:bg-yellow-600 rounded text-xs text-white shrink-0"
+                  onClick={() => setResizeImageModalOpen(true)}
+                >
+                  Resize
+                </button>
               </div>
             )}
-
             <Field label="Texture Path (Arma)">
               <input
                 className="w-full bg-surface-light border border-white/10 rounded px-2 py-1 text-xs text-white font-mono"

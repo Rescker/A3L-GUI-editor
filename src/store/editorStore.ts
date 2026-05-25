@@ -264,6 +264,7 @@ interface EditorStore {
   uiehPickerOpen: boolean;
   componentLibraryOpen: boolean;
   helpModalOpen: boolean;
+  resizeImageModalOpen: boolean;
   exportFormat: 'class' | 'full_dialog' | 'hud' | 'editor_format';
   validationIssues: ValidationIssue[];
   history: DialogConfig[][];
@@ -308,6 +309,7 @@ interface EditorStore {
   setUiehPickerOpen: (open: boolean) => void;
   setComponentLibraryOpen: (open: boolean) => void;
   setHelpModalOpen: (open: boolean) => void;
+  setResizeImageModalOpen: (open: boolean) => void;
   setExportFormat: (format: 'class' | 'full_dialog' | 'hud' | 'editor_format') => void;
   importData: (raw: string) => void;
   exportData: (dialogId: string, format?: 'class' | 'full_dialog' | 'hud' | 'editor_format') => string;
@@ -359,6 +361,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   uiehPickerOpen: false,
   componentLibraryOpen: false,
   helpModalOpen: false,
+  resizeImageModalOpen: false,
   exportFormat: 'full_dialog',
   validationIssues: [],
   history: [],
@@ -703,6 +706,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setUiehPickerOpen: (open) => set({ uiehPickerOpen: open }),
   setComponentLibraryOpen: (open) => set({ componentLibraryOpen: open }),
   setHelpModalOpen: (open) => set({ helpModalOpen: open }),
+  setResizeImageModalOpen: (open) => set({ resizeImageModalOpen: open }),
   setExportFormat: (format) => set({ exportFormat: format }),
 
   // === Import/Export ===
