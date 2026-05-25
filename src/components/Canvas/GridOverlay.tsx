@@ -1,6 +1,6 @@
 // =============================================================================
 // GridOverlay — Renders grid lines on the canvas
-// Handles GUI_GRID (40×25), SafeZone (10% increments), and Pixel Grid.
+// Handles GUI_GRID (40×25), SafeZone (10% increments), and Absolute (10% increments).
 // =============================================================================
 
 import React from 'react';

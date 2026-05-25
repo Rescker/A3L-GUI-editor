@@ -253,13 +253,13 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
     lines.push(`${indent}colorText[] = {${ctrl.colorText.map(v => v.toFixed(2)).join(', ')}};`);
   }
   if (shouldEmit('colorBackground') && !colorArraysEqual(ctrl.colorBackground, [0, 0, 0, 0])) {
-    lines.push(`${indent}colorBackground[] = {${formatColorElementArray(ctrl.colorBackground)}};`);
+    emitColorLine(lines, indent, 'colorBackground', ctrl.colorBackground);
   }
   if (shouldEmit('colorDisabled') && ctrl.colorDisabled && !arraysEqual(ctrl.colorDisabled, [1, 1, 1, 0.25])) {
     lines.push(`${indent}colorDisabled[] = {${ctrl.colorDisabled.map(v => v.toFixed(2)).join(', ')}};`);
   }
   if (shouldEmit('colorBackgroundActive') && ctrl.colorBackgroundActive && !colorArraysEqual(ctrl.colorBackgroundActive, [0, 0, 0, 0])) {
-    lines.push(`${indent}colorBackgroundActive[] = {${formatColorElementArray(ctrl.colorBackgroundActive)}};`);
+    emitColorLine(lines, indent, 'colorBackgroundActive', ctrl.colorBackgroundActive);
   }
 
   // Text
@@ -358,17 +358,17 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   if (ctrl.strings) lines.push(`${indent}strings[] = {${ctrl.strings.map(s => `"${s}"`).join(', ')}};`);
   if (ctrl.checkedStrings) lines.push(`${indent}checked_strings[] = {${ctrl.checkedStrings.map(s => `"${s}"`).join(', ')}};`);
   if (ctrl.colorTextSelect) lines.push(`${indent}colorTextSelect[] = {${ctrl.colorTextSelect.map(v => v.toFixed(2)).join(', ')}};`);
-  if (ctrl.colorSelectedBg) lines.push(`${indent}colorSelectedBg[] = {${formatColorElementArray(ctrl.colorSelectedBg)}};`);
+  if (ctrl.colorSelectedBg) emitColorLine(lines, indent, 'colorSelectedBg', ctrl.colorSelectedBg);
   if (ctrl.colorSelect) lines.push(`${indent}colorSelect[] = {${ctrl.colorSelect.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorTextDisable) lines.push(`${indent}colorTextDisable[] = {${ctrl.colorTextDisable.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorDisable) lines.push(`${indent}colorDisable[] = {${ctrl.colorDisable.map(v => v.toFixed(2)).join(', ')}};`);
 
   // === Hover / Focused / Pressed color states ===
   if (ctrl.colorHover) lines.push(`${indent}colorHover[] = {${ctrl.colorHover.map(v => v.toFixed(2)).join(', ')}};`);
-  if (ctrl.colorFocused) lines.push(`${indent}colorFocused[] = {${formatColorElementArray(ctrl.colorFocused)}};`);
+  if (ctrl.colorFocused) emitColorLine(lines, indent, 'colorFocused', ctrl.colorFocused);
   if (ctrl.colorPressed) lines.push(`${indent}colorPressed[] = {${ctrl.colorPressed.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorBackgroundHover) lines.push(`${indent}colorBackgroundHover[] = {${ctrl.colorBackgroundHover.map(v => v.toFixed(2)).join(', ')}};`);
-  if (ctrl.colorBackgroundFocused) lines.push(`${indent}colorBackgroundFocused[] = {${formatColorElementArray(ctrl.colorBackgroundFocused)}};`);
+  if (ctrl.colorBackgroundFocused) emitColorLine(lines, indent, 'colorBackgroundFocused', ctrl.colorBackgroundFocused);
   if (ctrl.colorBackgroundPressed) lines.push(`${indent}colorBackgroundPressed[] = {${ctrl.colorBackgroundPressed.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorBackgroundDisabled) lines.push(`${indent}colorBackgroundDisabled[] = {${ctrl.colorBackgroundDisabled.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorShadow) lines.push(`${indent}colorShadow[] = {${ctrl.colorShadow.map(v => v.toFixed(2)).join(', ')}};`);
@@ -473,7 +473,14 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   if (ctrl.colorPictureSelected) lines.push(`${indent}colorPictureSelected[] = {${ctrl.colorPictureSelected.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.colorPictureDisabled) lines.push(`${indent}colorPictureDisabled[] = {${ctrl.colorPictureDisabled.map(v => v.toFixed(2)).join(', ')}};`);
   if (ctrl.wholeHeight !== undefined) lines.push(`${indent}wholeHeight = ${ctrl.wholeHeight};`);
-  if (ctrl.rowHeight !== undefined) lines.push(`${indent}rowHeight = ${ctrl.rowHeight};`);
+  if (ctrl.rowHeight !== undefined) {
+    if (typeof ctrl.rowHeight === 'string') {
+      lines.push(`${indent}rowHeight = "${ctrl.rowHeight}";`);
+    } else {
+      lines.push(`${indent}rowHeight = ${ctrl.rowHeight};`);
+    }
+  }
+  if (ctrl.columnWidths && ctrl.columnWidths.length > 0) lines.push(`${indent}columns[] = {${ctrl.columnWidths.join(', ')}};`);
   if (ctrl.maxHistoryDelay !== undefined) lines.push(`${indent}maxHistoryDelay = ${ctrl.maxHistoryDelay};`);
   if (ctrl.autoScrollSpeed !== undefined) lines.push(`${indent}autoScrollSpeed = ${ctrl.autoScrollSpeed};`);
   if (ctrl.autoScrollDelay !== undefined) lines.push(`${indent}autoScrollDelay = ${ctrl.autoScrollDelay};`);
@@ -488,11 +495,11 @@ function generateControlClass(ctrl: ControlConfig, opts: GeneratorOptions, depth
   // === Progress specific (type 8) ===
   if (ctrl.texture) lines.push(`${indent}texture = "${escapeString(ctrl.texture)}";`);
   if (ctrl.colorFrame) lines.push(`${indent}colorFrame[] = {${ctrl.colorFrame.map(v => v.toFixed(2)).join(', ')}};`);
-  if (ctrl.colorBar) lines.push(`${indent}colorBar[] = {${formatColorElementArray(ctrl.colorBar)}};`);
+  if (ctrl.colorBar) emitColorLine(lines, indent, 'colorBar', ctrl.colorBar);
 
   // === Edit specific (type 2) ===
   if (ctrl.autocomplete !== undefined) lines.push(`${indent}autocomplete = ${ctrl.autocomplete ? 'true' : 'false'};`);
-  if (ctrl.colorSelection) lines.push(`${indent}colorSelection[] = {${formatColorElementArray(ctrl.colorSelection)}};`);
+  if (ctrl.colorSelection) emitColorLine(lines, indent, 'colorSelection', ctrl.colorSelection);
   if (ctrl.canModify !== undefined) lines.push(`${indent}canModify = ${ctrl.canModify};`);
 
   // === Tree specific (type 12) ===
@@ -601,10 +608,6 @@ function generateIncludes(opts: GeneratorOptions): string {
   if (opts.gridSystem === 'gui_grid') {
     includes.push('#include "\\a3\\ui_f\\hpp\\definecommongrids.inc"');
   }
-  if (opts.gridSystem === 'pixel_grid') {
-    includes.push('#include "\\a3\\3DEN\\UI\\macros.inc"');
-    includes.push('#include "\\a3\\3DEN\\UI\\macroexecs.inc"');
-  }
   includes.push('#include "\\a3\\ui_f\\hpp\\defineresincl.inc"');
   includes.push('#include "\\a3\\ui_f\\hpp\\definedikcodes.inc"');
   return includes.join('\n');
@@ -626,16 +629,13 @@ export function formatCoordExpr(expr: string | number): string {
   if (typeof expr === 'number') {
     return expr.toString();
   }
-  // If expression contains operators, wrap in quotes
-  if (/[*+\-/]/.test(expr) || expr.includes(' ')) {
-    return `"${expr}"`;
-  }
-  // Try parse as number
   const num = parseFloat(expr);
   if (!isNaN(num) && String(num) === expr.trim()) {
     return String(num);
   }
-  return `"${expr}"`;
+  // Return as bare expression — no quotes. Arma 3 evaluates
+  // expressions like "0.2027 * safezoneW + safezoneX" directly.
+  return expr;
 }
 
 export function styleFlagsToHex(style: number): string {
@@ -696,6 +696,14 @@ function getExportControls(dialog: DialogConfig, opts: GeneratorOptions): Contro
 
 function indentRef(depth: number): string {
   return ' '.repeat(4);
+}
+
+function emitColorLine(lines: string[], indent: string, propName: string, arr: ColorArray): void {
+  if (arr.length >= 4 && typeof arr[0] === 'string' && arr[1] === 0 && arr[2] === 0 && arr[3] === 0) {
+    lines.push(`${indent}${propName}[] = ${arr[0]};`);
+  } else {
+    lines.push(`${indent}${propName}[] = {${formatColorElementArray(arr)}};`);
+  }
 }
 
 function formatSound(sound: SoundEntry): string {

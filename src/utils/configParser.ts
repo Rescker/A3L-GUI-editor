@@ -255,6 +255,18 @@ function extractProperty(body: string, propName: string): string | null {
     if (braceContent !== null) return braceContent;
   }
 
+  // Match array properties without braces (macro reference): propName[] = MACRO_NAME;
+  // e.g. colorBackground[] = COLOR_BROWN;
+  const macroRefRegex = new RegExp(`\\b${escapeRegex(propName)}\\s*\\[\\]\\s*=\\s*([^;{]+)\\s*;`);
+  const macroMatch = body.match(macroRefRegex);
+  if (macroMatch) {
+    let val = macroMatch[1].trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    return val;
+  }
+
   // Match scalar properties: propName = value;
   const scalarRegex = new RegExp(`\\b${escapeRegex(propName)}\\s*=\\s*([^;]+)\\s*;`);
   const scalarMatch = body.match(scalarRegex);
@@ -690,7 +702,7 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       colorPictureSelected: parseColorArray(extractProperty(body, 'colorPictureSelected')),
       colorPictureDisabled: parseColorArray(extractProperty(body, 'colorPictureDisabled')),
       wholeHeight: parseOptionalFloat(extractProperty(body, 'wholeHeight')),
-      rowHeight: parseOptionalFloat(extractProperty(body, 'rowHeight')),
+      rowHeight: (() => { const r = extractProperty(body, 'rowHeight'); return r !== null ? parseCoordValue(r) : undefined; })(),
       maxHistoryDelay: parseOptionalFloat(extractProperty(body, 'maxHistoryDelay')),
       autoScrollSpeed: parseOptionalFloat(extractProperty(body, 'autoScrollSpeed')),
       autoScrollDelay: parseOptionalFloat(extractProperty(body, 'autoScrollDelay')),
@@ -727,8 +739,20 @@ function parseControlBlock(className: string, parentClass: string | undefined, b
       yCount: parseOptionalInt(extractProperty(body, 'yCount')),
       xSpace: parseOptionalFloat(extractProperty(body, 'xSpace')),
       ySpace: parseOptionalFloat(extractProperty(body, 'ySpace')),
-      // Checkboxes (type 7)
-      columns: parseOptionalInt(extractProperty(body, 'columns')),
+      // Checkboxes (type 7) / ListNBox (type 102)
+      // columns[] = {0, 0.78} → columnWidths,  columns = 5 → columns
+      ...(() => {
+        const colsRaw = extractProperty(body, 'columns');
+        if (colsRaw !== null) {
+          const isArray = new RegExp(`\\bcolumns\\s*\\[\\]\\s*=\\s*\\{`).test(body);
+          if (isArray) {
+            const widths = colsRaw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            return { columnWidths: widths.length > 0 ? widths : undefined };
+          }
+          return { columns: parseInt(colsRaw) || undefined };
+        }
+        return {};
+      })(),
       rows: parseOptionalInt(extractProperty(body, 'rows')),
       strings: parseStringArray(extractProperty(body, 'strings')),
       checkedStrings: parseStringArray(extractProperty(body, 'checked_strings')),
@@ -926,6 +950,14 @@ function parseColorOrSqf(raw: string | null): ColorArray | undefined {
       return isNaN(n) ? 0 : n;
     });
     return [elements[0], elements[1], elements[2], elements[3]];
+  }
+  // Handle bare macro identifier: e.g. COLOR_BROWN (not a comma-separated array)
+  // Preserve the macro name as a string so it can be re-exported correctly
+  if (parts.length === 1) {
+    const val = parts[0].trim();
+    if (/^[A-Z_][A-Z0-9_]*$/i.test(val) && !/^[\d.]+$/.test(val)) {
+      return [val, 0, 0, 0];
+    }
   }
   return undefined;
 }

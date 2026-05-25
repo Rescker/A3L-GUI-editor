@@ -10,8 +10,6 @@ import {
   controlToCanvasCoords,
   computeSafeZone,
   pixelToGridExpr,
-  applyExpressionDelta,
-  computePixelToGridScale,
 } from '../../utils/gridUtils';
 import { buildComponentRects, findAlignments } from '../../utils/alignmentUtils';
 import { ControlRenderer } from './ControlRenderer';
@@ -336,19 +334,21 @@ export const Canvas: React.FC = () => {
   const snapGridValue = useCallback(
     (expr: string): string => {
       if (!snapToGrid) return expr;
-      // For gui_grid values like "4.7 * GUI_GRID_CENTER_W + GUI_GRID_CENTER_X"
-      // snap the multiplier to nearest integer
+      const gridSize = gridSystem === 'absolute' ? 0.025 : 0.01;
+      const decimals = gridSystem === 'absolute' ? 4 : 2;
+      // For grid expressions like "4.7 * GUI_GRID_CENTER_W + GUI_GRID_CENTER_X"
+      // or safezone expressions like "0.1985 * safezoneW + safezoneX"
+      // snap the leading multiplier to the grid increment
       const match = expr.match(/^([\d.-]+)\s*\*/);
       if (match) {
-        const rounded = Math.round(parseFloat(match[1]));
-        return expr.replace(/^[\d.-]+/, String(rounded));
+        const num = parseFloat(match[1]);
+        const snapped = (Math.round(num / gridSize) * gridSize).toFixed(decimals);
+        return expr.replace(/^[\d.-]+/, String(snapped));
       }
-      // For absolute/safezone numbers, round to nearest 0.01
+      // For plain numbers
       const num = parseFloat(expr);
       if (!isNaN(num)) {
-        // Round to nearest grid-increment equivalent (0.025 for 40-wide grid)
-        const gridSize = gridSystem === 'absolute' ? 0.025 : 0.01;
-        return (Math.round(num / gridSize) * gridSize).toFixed(gridSystem === 'absolute' ? 4 : 2);
+        return (Math.round(num / gridSize) * gridSize).toFixed(decimals);
       }
       return expr;
     },
@@ -442,15 +442,12 @@ export const Canvas: React.FC = () => {
         const store = useEditorStore.getState();
         const selectedIds = store.selectedControlIds;
         const isMultiDrag = selectedIds.length > 1 && selectedIds.includes(ds.controlId);
-        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
 
         if (isMultiDrag) {
           const currentX = canvasMouse.x - ds.offsetX;
           const currentY = canvasMouse.y - ds.offsetY;
           const deltaX = currentX - ds.startPixelX;
           const deltaY = currentY - ds.startPixelY;
-          const deltaGridX = deltaX / gridScale.scaleX;
-          const deltaGridY = deltaY / gridScale.scaleY;
 
           const updates: { id: string; x: number | string; y: number | string }[] = [];
           for (const id of selectedIds) {
@@ -460,14 +457,9 @@ export const Canvas: React.FC = () => {
             const newPx = cCoords.x + deltaX;
             const newPy = cCoords.y + deltaY;
             const clamped = clampToCanvas(newPx, newPy, cCoords.w, cCoords.h);
-            const clampedDeltaX = clamped.x - cCoords.x;
-            const clampedDeltaY = clamped.y - cCoords.y;
-            const clampedDeltaGridX = clampedDeltaX / gridScale.scaleX;
-            const clampedDeltaGridY = clampedDeltaY / gridScale.scaleY;
-            const xExpr = applyExpressionDelta(ctrl.x, clampedDeltaGridX);
-            const yExpr = applyExpressionDelta(ctrl.y, clampedDeltaGridY);
-            let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-            let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+            const clampedExpr = pixelToGridExpr(clamped.x, clamped.y, cCoords.w, cCoords.h, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+            let x = clampedExpr.x;
+            let y = clampedExpr.y;
             if (snapToGrid) {
               x = snapGridValue(x);
               y = snapGridValue(y);
@@ -485,12 +477,9 @@ export const Canvas: React.FC = () => {
           newPx = clamped.x;
           newPy = clamped.y;
 
-          const deltaGridX = (newPx - ds.startPixelX) / gridScale.scaleX;
-          const deltaGridY = (newPy - ds.startPixelY) / gridScale.scaleY;
-          const xExpr = applyExpressionDelta(ds.startExprX, deltaGridX);
-          const yExpr = applyExpressionDelta(ds.startExprY, deltaGridY);
-          let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-          let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
+          const newExpr = pixelToGridExpr(newPx, newPy, ds.startPixelW, ds.startPixelH, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+          let x = newExpr.x;
+          let y = newExpr.y;
           if (snapToGrid) {
             x = snapGridValue(x);
             y = snapGridValue(y);
@@ -571,21 +560,11 @@ export const Canvas: React.FC = () => {
         newPw = clamped2.w;
         newPh = clamped2.h;
 
-        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
-        const deltaGridX = (newPx - rs.startPixelX) / gridScale.scaleX;
-        const deltaGridY = (newPy - rs.startPixelY) / gridScale.scaleY;
-        const deltaGridW = (newPw - rs.startPixelW) / gridScale.scaleX;
-        const deltaGridH = (newPh - rs.startPixelH) / gridScale.scaleY;
-
-        const xExpr = applyExpressionDelta(rs.startExprX, deltaGridX);
-        const yExpr = applyExpressionDelta(rs.startExprY, deltaGridY);
-        const wExpr = applyExpressionDelta(rs.startExprW, deltaGridW);
-        const hExpr = applyExpressionDelta(rs.startExprH, deltaGridH);
-
-        let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-        let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
-        let w = typeof wExpr === 'number' ? wExpr.toString() : wExpr;
-        let h = typeof hExpr === 'number' ? hExpr.toString() : hExpr;
+        const newExpr = pixelToGridExpr(newPx, newPy, newPw, newPh, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+        let x = newExpr.x;
+        let y = newExpr.y;
+        let w = newExpr.w;
+        let h = newExpr.h;
         if (snapToGrid) {
           x = snapGridValue(x);
           y = snapGridValue(y);
@@ -676,7 +655,6 @@ export const Canvas: React.FC = () => {
         const shiftX = newBx - grs.startBBox.x;
         const shiftY = newBy - grs.startBBox.y;
 
-        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
         const updates: { id: string; x: number | string; y: number | string; w: number | string; h: number | string }[] = [];
 
         for (const snap of grs.snapshots) {
@@ -685,20 +663,11 @@ export const Canvas: React.FC = () => {
           const newPixelW = snap.pixelW * scaleX;
           const newPixelH = snap.pixelH * scaleY;
 
-          const deltaGridX = (newPixelX - snap.pixelX) / gridScale.scaleX;
-          const deltaGridY = (newPixelY - snap.pixelY) / gridScale.scaleY;
-          const deltaGridW = (newPixelW - snap.pixelW) / gridScale.scaleX;
-          const deltaGridH = (newPixelH - snap.pixelH) / gridScale.scaleY;
-
-          const xExpr = applyExpressionDelta(snap.exprX, deltaGridX);
-          const yExpr = applyExpressionDelta(snap.exprY, deltaGridY);
-          const wExpr = applyExpressionDelta(snap.exprW, deltaGridW);
-          const hExpr = applyExpressionDelta(snap.exprH, deltaGridH);
-
-          let x = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-          let y = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
-          let w = typeof wExpr === 'number' ? wExpr.toString() : wExpr;
-          let h = typeof hExpr === 'number' ? hExpr.toString() : hExpr;
+          const controlExpr = pixelToGridExpr(newPixelX, newPixelY, newPixelW, newPixelH, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+          let x = controlExpr.x;
+          let y = controlExpr.y;
+          let w = controlExpr.w;
+          let h = controlExpr.h;
           if (snapToGrid) {
             x = snapGridValue(x);
             y = snapGridValue(y);
@@ -841,19 +810,11 @@ export const Canvas: React.FC = () => {
           if (e.key === 'ArrowUp') dy = -step;
           if (e.key === 'ArrowDown') dy = step;
 
-          // Apply delta in grid units (pixels for convenience, converted below)
           const newPx = coords.x + dx;
           const newPy = coords.y + dy;
-          // Clamp to canvas boundaries
           const clamped = clampToCanvas(newPx, newPy, coords.w, coords.h);
-          const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
-          const deltaGridX = (clamped.x - coords.x) / gridScale.scaleX;
-          const deltaGridY = (clamped.y - coords.y) / gridScale.scaleY;
-          const xExpr = applyExpressionDelta(ctrl.x, deltaGridX);
-          const yExpr = applyExpressionDelta(ctrl.y, deltaGridY);
-          let gridX = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-          let gridY = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
-          store.moveControl(dialogId, id, gridX, gridY);
+          const nudgedExpr = pixelToGridExpr(clamped.x, clamped.y, coords.w, coords.h, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+          store.moveControl(dialogId, id, nudgedExpr.x, nudgedExpr.y);
         }
         return;
       }
@@ -883,19 +844,13 @@ export const Canvas: React.FC = () => {
         if (store.clipboard.length === 0) return;
         if (isInput) return;
         e.preventDefault();
-        const gridScale = computePixelToGridScale(canvasW, canvasH, previewUIScale);
         for (const copy of store.clipboard) {
           const clone = structuredClone(copy);
           const coords = controlToCanvasCoords(copy, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
           const offsetPx = Math.max(20, coords.w * 0.1);
-          const deltaGridX = offsetPx / gridScale.scaleX;
-          const deltaGridY = offsetPx / gridScale.scaleY;
-          const xExpr = applyExpressionDelta(copy.x, deltaGridX);
-          const yExpr = applyExpressionDelta(copy.y, deltaGridY);
-          const nextX = typeof xExpr === 'number' ? xExpr.toString() : xExpr;
-          const nextY = typeof yExpr === 'number' ? yExpr.toString() : yExpr;
-          clone.x = snapToGrid ? snapGridValue(nextX) : nextX;
-          clone.y = snapToGrid ? snapGridValue(nextY) : nextY;
+          const pasteExpr = pixelToGridExpr(coords.x + offsetPx, coords.y + offsetPx, coords.w, coords.h, gridSystem, gridVariant, canvasW, canvasH, previewUIScale);
+          clone.x = snapToGrid ? snapGridValue(pasteExpr.x) : pasteExpr.x;
+          clone.y = snapToGrid ? snapGridValue(pasteExpr.y) : pasteExpr.y;
           const zone = store.clipboardSourceZone ?? 'controls';
           store.addControlFromTemplate(dialogId, clone, zone);
         }
